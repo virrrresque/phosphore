@@ -163,8 +163,8 @@ input::selection { background: var(--c-sel); color: #fff; }
 .a.sel, .a:hover { background: var(--c-sel); color: #fff; }
 #internal { position: absolute; inset: 0; overflow: auto; padding: 0 14px 10px; background: var(--bg); white-space: pre; user-select: text; scrollbar-width: none; }
 /* Croix de fermeture d'une page interne (ext, settings, history…) : en haut à droite, rouge au survol. */
-#internal .close { position: sticky; float: right; top: 6px; right: 0; z-index: 2; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: var(--fg-mute); background: var(--bg-2); cursor: pointer; user-select: none; font-size: 16px; }
-#internal .close:hover { background: #C42B1C; color: #fff; }
+#internal .close { position: sticky; float: right; top: 6px; right: 0; z-index: 2; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; color: #E5484D; text-shadow: 0 1px 4px rgba(0, 0, 0, .45); cursor: pointer; user-select: none; font-size: 20px; }
+#internal .close:hover { color: #FF6369; }
 .tag { background: var(--fg); color: var(--on-fg); }
 
 /* Propositions en liste, comme PSReadLine (vue liste) : sous la barre du haut, ou au-dessus de l'invite du bas. */
@@ -179,8 +179,8 @@ input::selection { background: var(--c-sel); color: #fff; }
 #ask { padding: 6px 14px 0; white-space: pre-wrap; }
 #msg { padding: 0 14px; white-space: pre-wrap; color: var(--fg); max-height: 40vh; overflow: auto; user-select: text; }
 #msg:empty { display: none; }
-#msg .close { position: sticky; float: right; top: 2px; margin-left: 8px; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: var(--fg-mute); background: var(--bg-2); cursor: pointer; user-select: none; font-size: 15px; }
-#msg .close:hover { background: #C42B1C; color: #fff; }
+#msg .close { position: sticky; float: right; top: 2px; margin-left: 8px; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; color: #E5484D; text-shadow: 0 1px 4px rgba(0, 0, 0, .45); cursor: pointer; user-select: none; font-size: 19px; }
+#msg .close:hover { color: #FF6369; }
 #prompt { padding: 4px 14px 10px; cursor: text; }
 /* Invite du bas : le texte tapé est recopié en couleur (commande en jaune, comme PowerShell) sous un champ transparent. */
 .field { position: relative; flex: 1; min-width: 0; display: flex; }
