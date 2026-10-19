@@ -1,0 +1,218 @@
+@import './phosphore-tokens.css';
+
+/* Phosphore v3 · PowerShell : fenêtre Windows Terminal, Cascadia Mono 14 px, palette Campbell, aucun effet CRT. */
+:root, [data-theme] {
+  --font-display: 'Cascadia Mono', 'Cascadia Code', Consolas, monospace; --font-body: var(--font-display);
+  --font-ui: 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+  --glow: none; --glow-strong: none;
+  /* Campbell */
+  --c-y: #F9F1A5; --c-g: #16C60C; --c-r: #E74856; --c-dr: #C50F1F; --c-cy: #3A96DD; --c-bc: #61D6D6; --c-gray: #767676; --c-sel: #264F78;
+  --strip: #1F1F1F; --side: #181818; --hover: #2d2d2d; --side-hover: #262626;
+  /* Horloge de la nouvelle page (orange des bannières de terminal), pages privées, couleur de chaque Space. Tous modifiables : set color … */
+  --c-clock: #D77757; --c-priv: #B48EAD;
+  --sp1: #3A96DD; --sp2: #16C60C; --sp3: #F9F1A5; --sp4: #61D6D6; --sp5: #E74856; --sp6: #B48EAD;
+}
+[data-theme="white"] {
+  --bg: #0C0C0C; --bg-1: #161616; --bg-2: #1F1F1F; --bg-3: #2d2d2d;
+  --fg: #CCCCCC; --fg-strong: #F2F2F2; --fg-dim: #A0A0A0; --fg-mute: #8A8A8A;
+  --line: #2a2a2a; --line-strong: #3a3a3a; --on-fg: #0C0C0C; --danger: #E74856;
+}
+
+* { box-sizing: border-box; }
+/* Barres de défilement aux couleurs du thème (modifiables : set color …, set css --line-strong …). */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--c-gray); }
+::-webkit-scrollbar-corner { background: transparent; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; }
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+:focus-visible { outline: 1px solid var(--c-cy); outline-offset: -1px; }
+.y { color: var(--c-y); } .g { color: var(--c-g); } .r { color: var(--c-r); } .cy { color: var(--c-cy); } .bc { color: var(--c-bc); }
+.gray { color: var(--c-gray); } .w, .strong { color: var(--fg-strong); } .mute { color: var(--fg-mute); } .danger { color: var(--c-r); }
+
+/* Fenêtre : barre d'onglets en haut, barre latérale à gauche, terminal à droite. Seul #page est transparent (le site y est posé). */
+#app {
+  position: fixed; inset: 0; display: grid; grid-template-columns: var(--side-w, 180px) 1fr; grid-template-rows: 38px 1fr;
+  font-family: var(--font-display); font-size: calc(14px * var(--scale)); line-height: 1.35; color: var(--fg); user-select: none;
+}
+
+/* ── onglets ── */
+#tabbar { grid-column: 1 / -1; display: flex; align-items: flex-end; background: var(--strip); font-size: 12px; -webkit-app-region: drag; }
+#tabs { display: flex; align-items: flex-end; gap: 2px; min-width: 0; overflow: hidden; padding-left: 8px; }
+.tab { -webkit-app-region: no-drag; flex: 0 1 190px; min-width: 80px; height: 31px; display: flex; align-items: center; gap: 8px; padding: 0 6px 0 10px; border-radius: 6px 6px 0 0; color: var(--fg-dim); cursor: pointer; }
+.tab:hover { background: var(--hover); }
+.tab.on { background: var(--bg); color: var(--fg-strong); }
+.tab .ic { font-size: 10px; color: var(--fg-mute); }
+.tab.on .ic { color: var(--fg-strong); }
+.tab.danger .ic { color: var(--c-r); }
+.tab .t { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.x { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: var(--fg-mute); }
+.x:hover { background: var(--line-strong); color: var(--fg-strong); }
+.tb { -webkit-app-region: no-drag; width: 32px; height: 31px; border-radius: 6px 6px 0 0; font-size: 15px; color: var(--fg); }
+.tb.small { width: 26px; font-size: 11px; }
+.tb:hover { background: var(--hover); }
+#drag { flex: 1; align-self: stretch; }
+.badge { align-self: center; margin: 0 10px; padding: 1px 6px; border-radius: 3px; font-size: 11px; white-space: nowrap; background: var(--hover); color: var(--fg); }
+.badge.ok { background: #1d3a1d; color: #7fdc7f; }
+.badge.err { color: var(--c-r); }
+.badge.bad { background: var(--c-dr); color: #fff; }
+.wins { display: flex; align-self: stretch; font-family: var(--font-ui); -webkit-app-region: no-drag; }
+.wb { width: 46px; font-size: 13px; }
+.wb:hover { background: var(--hover); }
+#w-close:hover { background: #C42B1C; color: #fff; }
+
+/* ── barre latérale : Spaces repliables, dossiers, pages, « fermés » ── */
+#side { grid-row: 2; grid-column: 1; background: var(--side); border-right: 1px solid var(--line); padding: 6px 0; font-size: 12px; line-height: 1; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; }
+.row { height: 22px; display: flex; align-items: center; gap: 4px; padding: 0 4px 0 8px; border-left: 2px solid transparent; color: var(--fg); cursor: pointer; }
+.row:hover { background: var(--side-hover); }
+.row .name { flex: 1; min-width: 0; white-space: pre; overflow: hidden; text-overflow: ellipsis; }
+.row .flag { font-size: 10px; color: var(--fg-mute); }
+.row .x { width: 16px; height: 16px; border-radius: 3px; color: #6e6e6e; visibility: hidden; }
+.row:hover .x, .row.on .x { visibility: visible; }
+.row.head { color: var(--fg-mute); }
+.row.head.cur { color: var(--fg-strong); }
+.row.dim { color: var(--fg-mute); }
+.row.on { background: var(--bg); color: var(--fg-strong); border-left-color: var(--c-cy); }
+.row.on.danger { border-left-color: var(--c-r); }
+.row.gap { height: 10px; cursor: default; }
+.row.gap:hover { background: none; }
+.row.drop-before { box-shadow: inset 0 2px var(--c-cy); }
+.row.drop-after { box-shadow: inset 0 -2px var(--c-cy); }
+.row.drop-inside { outline: 1px dashed var(--c-cy); outline-offset: -1px; }
+/* Space : bandeau plein, couleur propre à gauche ; ses pages en dessous, reliées par l'arbre (├ └) de la même couleur. */
+.row.space { height: 26px; margin: 0 4px; padding-left: 8px; border-radius: 4px; border-left: 3px solid var(--spc); background: var(--bg-2); color: var(--fg-dim); font-weight: 600; letter-spacing: .06em; }
+.row.space.cur { background: color-mix(in srgb, var(--spc) 22%, var(--bg-2)); color: var(--fg-strong); }
+.row.space .flag { color: var(--spc); font-size: 11px; }
+/* Flèche de repli d'un Space : cliquable seule (un clic plie / déplie), sans déclencher le changement de Space. */
+.row.space .arr { flex-shrink: 0; width: 1.4ch; text-align: center; color: var(--fg-dim); border-radius: 3px; }
+.row.space .arr:hover { background: color-mix(in srgb, var(--spc) 30%, transparent); color: var(--fg-strong); }
+.row.child { margin-left: 8px; padding-left: 4px; border-left: 2px solid color-mix(in srgb, var(--spc) 40%, transparent); }
+.row.child.on { border-left-color: var(--spc); }
+.row.priv .name, .tab.priv .ic { color: var(--c-priv); }
+#grip { grid-row: 2; grid-column: 1; justify-self: end; width: 6px; margin-right: -3px; z-index: 2; cursor: col-resize; }
+#grip:hover { background: color-mix(in srgb, var(--c-cy) 50%, transparent); }
+.noside #grip { display: none; }
+/* Barre d'onglets : pastille du Space courant, onglets déplaçables. */
+.space-chip { align-self: center; flex-shrink: 0; margin: 0 6px 4px 0; padding: 2px 8px; border-radius: 3px; border-left: 3px solid var(--spc); background: var(--bg-2); color: var(--fg-strong); font-weight: 600; text-transform: uppercase; letter-spacing: .06em; font-size: 11px; }
+.tab.drop-before { box-shadow: inset 2px 0 var(--c-cy); }
+.tab.drop-after { box-shadow: inset -2px 0 var(--c-cy); }
+.clock { color: var(--c-clock); line-height: 1.2; }
+.priv { color: var(--c-priv); }
+.a.picked { background: color-mix(in srgb, var(--c-r) 35%, transparent); color: var(--fg-strong); }
+/* Cellule de tableau : largeur fixe en caractères, texte trop long coupé par « … ». */
+.cell { display: inline-block; vertical-align: top; white-space: pre; overflow: hidden; text-overflow: ellipsis; padding-right: 1ch; }
+#st-info .install { color: var(--c-g); cursor: pointer; }
+.badge.install { -webkit-app-region: no-drag; cursor: pointer; background: var(--c-g); color: #000; font-weight: 700; }
+.badge.install:hover { filter: brightness(1.15); }
+.btn { color: var(--c-cy); }
+/* Fiche d'une extension dans le menu Store : texte qui revient à la ligne, décalé sous son nom. */
+.store-card { white-space: normal; margin: 2px 0 10px 5ch; padding: 6px 10px; max-width: 100ch; border-left: 2px solid var(--c-g); background: var(--bg-1); }
+.store-card > div { margin: 2px 0; }
+.store-card .about { white-space: pre-wrap; color: var(--fg-dim); max-height: 18em; overflow: auto; margin: 6px 0; }
+.btn.go { color: var(--c-g); }
+.btn.danger { color: var(--c-r); }
+#st-info .install:hover { text-decoration: underline; }
+/* ui hide <élément> */
+.hide-tabbar #app { grid-template-rows: 0 1fr; }
+.hide-tabbar #tabbar { display: none; }
+.hide-chip .space-chip, .hide-newbtn #t-new, .hide-menu #t-menu, .hide-badge #sec, .hide-winbtns .wins { display: none; }
+.hide-addr #top .pline { display: none; }
+.hide-status #st-info { display: none; }
+.hide-addr.hide-status #top { display: none; }
+.hide-hint #hint { display: none; }
+.hide-counts .row.space .flag, .hide-flags .row.child .flag, .hide-empty .row.empty { display: none; }
+/* L'invite masquée reste focalisable : Ctrl+K l'affiche le temps de taper. */
+.hide-prompt #prompt:not(:focus-within) { height: 0; padding: 0; overflow: hidden; }
+/* set sidebar-side right */
+.side-right #app { grid-template-columns: 1fr var(--side-w, 180px); }
+.side-right #side { grid-column: 2; border-right: 0; border-left: 1px solid var(--line); }
+.side-right #term { grid-column: 1; }
+.side-right #grip { grid-column: 2; justify-self: start; margin-right: 0; margin-left: -3px; }
+.side-right.noside #app { grid-template-columns: 1fr 0; }
+
+/* ── terminal ── */
+#term { grid-row: 2; grid-column: 2; position: relative; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+#term > *:not(#page) { background: var(--bg); }
+#top { padding: 10px 14px 6px; }
+.pline { display: flex; white-space: pre; min-width: 0; }
+.ps { color: var(--fg); flex-shrink: 0; }
+.pline input { flex: 1; min-width: 0; font: inherit; color: var(--fg); background: transparent; border: 0; outline: 0; padding: 0; caret-color: var(--fg); }
+#addr:focus { color: var(--fg-strong); }
+#addr::placeholder { color: var(--c-gray); }
+input::selection { background: var(--c-sel); color: #fff; }
+#st-info { white-space: pre; overflow: hidden; text-overflow: ellipsis; }
+#st-info.danger { color: var(--c-r); }
+
+#page { position: relative; flex: 1; min-height: 0; display: flex; background: transparent; }
+#text { flex: 1; min-width: 0; padding: 0 14px; overflow-y: auto; background: var(--bg); white-space: pre-wrap; scrollbar-width: none; overflow-wrap: anywhere; }
+#out[hidden] { display: none; }
+#out { width: min(560px, 42%); display: flex; flex-direction: column; border-left: 28px solid var(--bg); }
+#out-head { background: var(--bg); padding-bottom: 6px; }
+#media { aspect-ratio: 16 / 9; border: 1px solid var(--line-strong); }
+#cap { flex: 1; background: var(--bg); padding-top: 8px; white-space: pre-wrap; }
+.web #text, .web #out { display: none; }
+.ln.h1, .ln.h2, .ln.h3 { margin-top: 1.2em; color: var(--fg-strong); }
+.ln.long { margin-bottom: 1.2em; }
+.ln.pre { white-space: pre; overflow-x: auto; }
+.ln.img, .ln.video { margin: .4em 0; }
+.ln.hr { margin: 1.2em 0; color: var(--c-gray); }
+.a { color: var(--c-cy); cursor: pointer; }
+.a.m { color: var(--c-bc); }
+.a.i, .a.p { color: var(--fg-dim); }
+.a.sel, .a:hover { background: var(--c-sel); color: #fff; }
+#internal { position: absolute; inset: 0; overflow: auto; padding: 0 14px 10px; background: var(--bg); white-space: pre; user-select: text; scrollbar-width: none; }
+/* Croix de fermeture d'une page interne (ext, settings, history…) : en haut à droite, rouge au survol. */
+#internal .close { position: sticky; float: right; top: 6px; right: 0; z-index: 2; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: var(--fg-mute); background: var(--bg-2); cursor: pointer; user-select: none; font-size: 16px; }
+#internal .close:hover { background: #C42B1C; color: #fff; }
+.tag { background: var(--fg); color: var(--on-fg); }
+
+/* Propositions en liste, comme PSReadLine (vue liste) : sous la barre du haut, ou au-dessus de l'invite du bas. */
+#sugg { position: absolute; left: 0; right: 0; top: 0; z-index: 2; padding: 0 14px 6px; background: var(--bg); white-space: pre; }
+#sugg.cmd { top: auto; bottom: 0; padding: 6px 14px 0; }
+#sugg .it { display: flex; padding-right: 2ch; cursor: pointer; }
+#sugg .it .l { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+#sugg .it .k { color: var(--c-gray); padding-left: 2ch; }
+#sugg .it.sel { background: var(--c-sel); }
+#sugg .it.sel .l, #sugg .it.sel .k { color: var(--fg-strong); }
+
+#ask { padding: 6px 14px 0; white-space: pre-wrap; }
+#msg { padding: 0 14px; white-space: pre-wrap; color: var(--fg); max-height: 40vh; overflow: auto; user-select: text; }
+#msg:empty { display: none; }
+#prompt { padding: 4px 14px 10px; cursor: text; }
+/* Invite du bas : le texte tapé est recopié en couleur (commande en jaune, comme PowerShell) sous un champ transparent. */
+.field { position: relative; flex: 1; min-width: 0; display: flex; }
+.field input { position: relative; z-index: 1; color: transparent; }
+.field input.plain { color: var(--fg); }
+.mirror { position: absolute; inset: 0; white-space: pre; overflow: hidden; pointer-events: none; color: var(--fg); }
+#hint { padding-left: 2ch; flex-shrink: 0; }
+
+/* Propositions ouvertes : l'interface passe au-dessus du site. */
+.overlay #page { background: color-mix(in srgb, var(--bg) 70%, transparent); }
+
+#boot { position: absolute; inset: 0; z-index: 3; padding: 0 14px; background: var(--bg); white-space: pre; }
+
+/* Menu clic droit, comme le menu contextuel de Windows Terminal. */
+.ctx { position: fixed; z-index: 10; min-width: 250px; padding: 4px 0; background: var(--strip); border: 1px solid var(--line-strong); border-radius: 6px; box-shadow: 0 8px 24px rgba(0,0,0,.5); font-size: 12px; }
+.ctx .mi { display: flex; gap: 2ch; padding: 5px 12px; cursor: pointer; white-space: pre; }
+.ctx .mi:hover { background: var(--c-sel); color: #fff; }
+.ctx .mi .l { flex: 1; }
+.ctx .mi .k { color: var(--c-gray); }
+.ctx .mi:hover .k { color: #cfe3ff; }
+.ctx .mi.danger { color: var(--c-r); }
+.ctx .mi.off { color: #5a5a5a; cursor: default; }
+.ctx .mi.off:hover { background: none; color: #5a5a5a; }
+.ctx .sep { height: 1px; margin: 4px 0; background: var(--line-strong); }
+/* sidebar off */
+.noside #app { grid-template-columns: 0 1fr; }
+.noside #side { display: none; }
+/* find-tab : nom du Space au-dessus de ses pages, de sa couleur. */
+.space-label { color: var(--spc); font-weight: 600; letter-spacing: .06em; }
+.row.asleep .name { font-style: italic; }
+/* Guide de personnalisation : rubriques cliquables. */
+.guide-head { color: var(--fg-strong); font-weight: 600; }
+.guide-head.open { color: var(--c-cy); }
+.guide-cmd { cursor: pointer; }
+.guide-cmd:hover { background: var(--c-sel); color: #fff; }
+/* Cellule dont le texte revient à la ligne au lieu d'être coupé (descriptions du guide). */
+.cell.wrap { white-space: normal; }

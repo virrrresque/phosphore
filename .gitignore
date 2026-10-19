@@ -1,0 +1,10 @@
+node_modules/
+dist/
+Cookies
+Cookies-journal
+*.csv
+release
+cookies.txt
+*.sqlite
+.env
+*.log

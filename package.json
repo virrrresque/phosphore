@@ -1,0 +1,82 @@
+{
+  "name": "navigateur_mini",
+  "productName": "Phosphore",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Navigateur Phosphore",
+  "author": "virrrr",
+  "main": "dist/main/main/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json && tsc -p src/ui/tsconfig.json && vite build",
+    "start": "npm run build && electron .",
+    "test": "node --no-warnings --test \"tests/*.test.ts\"",
+    "dist": "npm run build && electron-builder --win nsis && node scripts/sha256.mjs",
+    "update-electron": "npm install electron@latest --save-dev && npm test && npm run dist",
+    "release": "node scripts/release.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "electron": "44.9.0",
+    "electron-builder": "26.17.0",
+    "typescript": "7.0.2",
+    "vite": "8.3.4"
+  },
+  "build": {
+    "appId": "local.phosphore.browser",
+    "productName": "Phosphore",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json",
+      "!**/*.map"
+    ],
+    "asar": true,
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "include": "build/installer.nsh",
+      "createDesktopShortcut": true,
+      "shortcutName": "Phosphore",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico"
+    },
+    "electronFuses": {
+      "runAsNode": false,
+      "enableCookieEncryption": true,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "enableEmbeddedAsarIntegrityValidation": true,
+      "onlyLoadAppFromAsar": true,
+      "grantFileProtocolExtraPrivileges": false
+    },
+    "protocols": [
+      {
+        "name": "Phosphore",
+        "schemes": [
+          "http",
+          "https"
+        ]
+      }
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "virrrr1903-alt",
+        "repo": "phosphore",
+        "releaseType": "release"
+      }
+    ]
+  },
+  "dependencies": {
+    "electron-updater": "6.8.9"
+  }
+}

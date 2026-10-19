@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="fr" data-theme="white" data-size="M" data-motion="full">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Phosphore</title>
+  <link rel="stylesheet" href="./style.css">
+  <script type="module" src="./main.ts"></script>
+</head>
+<body>
+  <div id="app">
+    <header id="tabbar">
+      <div id="tabs" role="tablist" aria-label="Pages du Space"></div>
+      <button id="t-new" class="tb" title="Nouvelle page (Ctrl+T)" aria-label="Nouvelle page">+</button>
+      <button id="t-menu" class="tb small" title="Menu" aria-label="Menu">˅</button>
+      <span id="drag"></span>
+      <span id="sec" class="badge"></span>
+      <span class="wins"><button id="w-min" class="wb" aria-label="Réduire">─</button><button id="w-max" class="wb" aria-label="Agrandir">☐</button><button id="w-close" class="wb" aria-label="Fermer">✕</button></span>
+    </header>
+    <nav id="side" aria-label="Spaces, dossiers et pages"></nav>
+    <div id="grip" title="Tirer pour élargir la barre · double-clic : taille normale" aria-hidden="true"></div>
+    <section id="term">
+      <div id="top">
+        <div class="pline"><label for="addr" class="ps" id="addr-ps"></label><span class="y" id="addr-verb">open </span><input id="addr" autocomplete="off" spellcheck="false" aria-label="Adresse ou recherche Google"></div>
+        <div id="st-info" class="gray"></div>
+      </div>
+      <main id="page">
+        <div id="text" aria-live="off"></div>
+        <aside id="out" hidden><div id="out-head"></div><div id="media"></div><div id="cap"></div></aside>
+        <div id="internal" hidden></div>
+        <div id="sugg" role="listbox" aria-label="Propositions" hidden></div>
+        <div id="boot" hidden></div>
+      </main>
+      <div id="ask" hidden></div>
+      <div id="msg" role="status"></div>
+      <footer id="prompt" class="pline">
+        <label for="cmd" class="ps" id="seal"></label>
+        <span class="field"><span class="mirror" id="cmd-m" aria-hidden="true"></span><input id="cmd" autocomplete="off" spellcheck="false" aria-label="Commande"></span>
+        <span id="hint" class="gray"></span>
+      </footer>
+    </section>
+  </div>
+</body>
+</html>
