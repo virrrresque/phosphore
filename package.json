@@ -47,7 +47,8 @@
       "createDesktopShortcut": true,
       "shortcutName": "Phosphore",
       "installerIcon": "build/icon.ico",
-      "uninstallerIcon": "build/icon.ico"
+      "uninstallerIcon": "build/icon.ico",
+      "artifactName": "${productName}-Setup-${version}.${ext}"
     },
     "electronFuses": {
       "runAsNode": false,

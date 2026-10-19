@@ -135,6 +135,12 @@ let msgTimer = 0;
 function flash(text: string | (string | Node)[]) {
   if (typeof text === 'string') $('msg').textContent = text.slice(0, 6000);
   else $('msg').replaceChildren(...text);
+  // Croix pour fermer le message (aussi Ctrl+C), comme sur les pages internes.
+  const close = el('span', '×', 'close');
+  close.title = 'Fermer · Ctrl+C';
+  close.setAttribute('aria-label', 'Fermer');
+  close.onclick = () => { clearTimeout(msgTimer); $('msg').textContent = ''; };
+  $('msg').prepend(close);
   clearTimeout(msgTimer);
   // Une sortie de plusieurs lignes (ls) reste plus longtemps à l'écran ; cls l'efface.
   msgTimer = window.setTimeout(() => ($('msg').textContent = ''), typeof text !== 'string' || text.includes('\n') ? 30000 : 6000);
@@ -1207,12 +1213,14 @@ addEventListener('keydown', e => {
   if (e.key === 'Delete') { e.preventDefault(); send({ t: 'history-rm', ts: [...picked] }); picked.clear(); }
   else if (e.key === 'Escape') { picked.clear(); renderInternal(); }
 });
-// Ctrl+C ferme la page interne ouverte (sauf si du texte est sélectionné : on le laisse copier, ou si on tape une commande).
+// Ctrl+C ferme le message affiché, sinon la page interne ouverte (sauf si du texte est sélectionné : on le laisse copier, ou si on tape une commande).
 addEventListener('keydown', e => {
-  if (!page || !(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'c') return;
+  if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'c') return;
+  if (!page && !$('msg').textContent) return;
   if (window.getSelection()?.toString() || (document.activeElement === cmd && cmd.value)) return;
   e.preventDefault();
-  closeInternal();
+  if ($('msg').textContent) { clearTimeout(msgTimer); $('msg').textContent = ''; }
+  else closeInternal();
 });
 
 // ── poignée de la barre latérale : tirer pour changer sa largeur (enregistrée par set sidebar-width) ──

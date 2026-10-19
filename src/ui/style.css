@@ -179,6 +179,8 @@ input::selection { background: var(--c-sel); color: #fff; }
 #ask { padding: 6px 14px 0; white-space: pre-wrap; }
 #msg { padding: 0 14px; white-space: pre-wrap; color: var(--fg); max-height: 40vh; overflow: auto; user-select: text; }
 #msg:empty { display: none; }
+#msg .close { position: sticky; float: right; top: 2px; margin-left: 8px; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: var(--fg-mute); background: var(--bg-2); cursor: pointer; user-select: none; font-size: 15px; }
+#msg .close:hover { background: #C42B1C; color: #fff; }
 #prompt { padding: 4px 14px 10px; cursor: text; }
 /* Invite du bas : le texte tapé est recopié en couleur (commande en jaune, comme PowerShell) sous un champ transparent. */
 .field { position: relative; flex: 1; min-width: 0; display: flex; }

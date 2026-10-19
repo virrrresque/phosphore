@@ -77,7 +77,7 @@ Reply with the exact command(s) to type. Full list in the app: `man`; current va
 
 ## Releasing / auto-update
 
-Installed Phosphore checks GitHub Releases (`virrrresque/phosphore`, public) at every start when `update-check` is true (electron-updater): new version downloaded in the background, installed when Phosphore closes (`update install` = now). To publish a version: commit everything, then `npm run release` (tests, version +1 with commit + tag, build, upload to GitHub Releases, push). Needs `gh auth login` once (token read with `gh auth token`, never packaged). `npm run dist` builds locally without publishing.
+Installed Phosphore checks GitHub Releases (`virrrresque/phosphore`, public) at every start when `update-check` is true (electron-updater): new version downloaded in the background, installed when Phosphore closes (`update install` = now). To publish a version: commit everything, then `npm run release` (tests, version +1 with commit + tag, build, push, then `gh release create` with the installer, its .blockmap, latest.yml and SHA256SUMS.txt; if the upload fails, `node scripts/release.mjs --upload` resends them). Needs `gh auth login` once (token read with `gh auth token`, never packaged). `npm run dist` builds locally without publishing.
 
 ## Updating the embedded Chromium
 
