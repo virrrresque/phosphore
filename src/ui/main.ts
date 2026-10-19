@@ -136,7 +136,7 @@ function flash(text: string | (string | Node)[]) {
   if (typeof text === 'string') $('msg').textContent = text.slice(0, 6000);
   else $('msg').replaceChildren(...text);
   // Croix pour fermer le message (aussi Ctrl+C), comme sur les pages internes.
-  const close = el('span', 'X', 'close');
+  const close = el('span', '[X]', 'close');
   close.title = 'Fermer · Ctrl+C';
   close.setAttribute('aria-label', 'Fermer');
   close.onclick = () => { clearTimeout(msgTimer); $('msg').textContent = ''; };
@@ -731,7 +731,7 @@ function renderInternal() {
   box.replaceChildren(...lines);
   // Page interne ouverte (ext, settings, history, guide…) : croix rouge en haut à droite pour la fermer (aussi Ctrl+C).
   if (page) {
-    const close = el('span', 'X', 'close');
+    const close = el('span', '[X]', 'close');
     close.title = 'Fermer · Ctrl+C';
     close.setAttribute('aria-label', 'Fermer');
     close.onclick = closeInternal;

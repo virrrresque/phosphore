@@ -524,13 +524,20 @@ app.whenReady().then(() => {
   // electron-updater vérifie le SHA-512 annoncé par latest.yml ; pas de signature de code (pas de certificat).
   autoUpdater.logger = null;
   let downloaded = '';
+  let shownPct = -1;
   autoUpdater.on('update-downloaded', i => { downloaded = i.version; msg(`Phosphore ${i.version} téléchargé : installé à la fermeture · update install pour redémarrer maintenant`); });
-  async function checkAppUpdate(silent: boolean) {
-    if (!app.isPackaged) { if (!silent) msg('update : version de développement (npm start recompile déjà), pas de mise à jour automatique.'); return; }
+  // Téléchargement d'environ 120 Mo : avancement affiché par paliers de 10 %, sinon on croit que rien ne se passe.
+  autoUpdater.on('download-progress', p => { const pct = Math.floor(p.percent / 10) * 10; if (pct !== shownPct) { shownPct = pct; msg(`Mise à jour de Phosphore : téléchargement ${pct} %`); } });
+  autoUpdater.on('error', e => msg('update : échec · ' + e.message.split('\n')[0]));
+  /** Vrai si une nouvelle version est disponible ou déjà téléchargée. */
+  async function checkAppUpdate(silent: boolean): Promise<boolean> {
+    if (!app.isPackaged) { if (!silent) msg('update : version de développement (npm start recompile déjà), pas de mise à jour automatique.'); return false; }
     try {
       const r = await autoUpdater.checkForUpdates();
-      if (!silent) msg(downloaded ? `Phosphore ${downloaded} prêt · update install pour redémarrer` : r?.isUpdateAvailable ? `Phosphore ${r.updateInfo.version} disponible : téléchargement…` : `Phosphore ${app.getVersion()} est à jour.`);
-    } catch (e) { if (!silent) msg('update : GitHub injoignable · ' + (e as Error).message); }
+      const found = !!downloaded || !!r?.isUpdateAvailable;
+      if (!silent) msg(downloaded ? `Phosphore ${downloaded} prêt · update install pour redémarrer` : found ? `Phosphore ${r!.updateInfo.version} disponible : téléchargement…` : `Phosphore ${app.getVersion()} est à jour.`);
+      return found;
+    } catch (e) { if (!silent) msg('update : GitHub injoignable · ' + (e as Error).message.split('\n')[0]); return false; }
   }
 
   /** Écrit des cookies lus ailleurs dans la partition du Space actif (ou de tous si « set spaces true »), puis les efface de la mémoire. */
@@ -984,7 +991,8 @@ app.whenReady().then(() => {
       }
       case 'update':
         if (a.install) return downloaded ? autoUpdater.quitAndInstall() : msg('update install : aucune mise à jour téléchargée · update pour vérifier');
-        void checkUpdate(true); void checkAppUpdate(false); return;
+        // Le retard de Chromium n'est signalé qu'après : son message ne doit pas cacher celui de la mise à jour de Phosphore.
+        void checkAppUpdate(false).then(found => { if (!found) setTimeout(() => void checkUpdate(true), 4000); }); return;
       case 'blocklist-allow': {
         if (a.op === 'ls') return msg(settings.blockAllow.length ? 'Exclus du blocage (pubs/traqueurs/hameçonnage) : ' + settings.blockAllow.join(', ') : 'Aucune exception. blocklist allow example.com · (activer le blocage : set blocklist true)');
         const d = cleanDomain(a.site);
