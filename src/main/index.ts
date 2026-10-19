@@ -1011,15 +1011,25 @@ app.whenReady().then(() => {
           app.removeAsDefaultProtocolClient('http'); app.removeAsDefaultProtocolClient('https');
           return msg('Phosphore retiré des navigateurs par défaut de Windows.');
         }
+        const cap = 'HKCU\\Software\\Clients\\StartMenuInternet\\Phosphore\\Capabilities', icon = `"${exe}",0`;
+        // Icônes et FileAssociations (.htm/.html) : sans elles, Windows 11 n'affiche pas Phosphore dans « Applications par défaut ».
         const keys: string[][] = [
           ['HKCU\\Software\\Classes\\PhosphoreURL', '/ve', '/d', 'Phosphore URL'],
+          ['HKCU\\Software\\Classes\\PhosphoreURL\\DefaultIcon', '/ve', '/d', icon],
+          ['HKCU\\Software\\Classes\\PhosphoreURL\\Application', '/v', 'ApplicationName', '/d', 'Phosphore'],
+          ['HKCU\\Software\\Classes\\PhosphoreURL\\Application', '/v', 'ApplicationIcon', '/d', icon],
           ['HKCU\\Software\\Classes\\PhosphoreURL\\shell\\open\\command', '/ve', '/d', `"${exe}" "%1"`],
           ['HKCU\\Software\\Clients\\StartMenuInternet\\Phosphore', '/ve', '/d', 'Phosphore'],
+          ['HKCU\\Software\\Clients\\StartMenuInternet\\Phosphore\\DefaultIcon', '/ve', '/d', icon],
           ['HKCU\\Software\\Clients\\StartMenuInternet\\Phosphore\\shell\\open\\command', '/ve', '/d', `"${exe}"`],
-          ['HKCU\\Software\\Clients\\StartMenuInternet\\Phosphore\\Capabilities', '/v', 'ApplicationName', '/d', 'Phosphore'],
-          ['HKCU\\Software\\Clients\\StartMenuInternet\\Phosphore\\Capabilities', '/v', 'ApplicationDescription', '/d', 'Navigateur Phosphore'],
-          ['HKCU\\Software\\Clients\\StartMenuInternet\\Phosphore\\Capabilities\\URLAssociations', '/v', 'http', '/d', 'PhosphoreURL'],
-          ['HKCU\\Software\\Clients\\StartMenuInternet\\Phosphore\\Capabilities\\URLAssociations', '/v', 'https', '/d', 'PhosphoreURL'],
+          [cap, '/v', 'ApplicationName', '/d', 'Phosphore'],
+          [cap, '/v', 'ApplicationDescription', '/d', 'Navigateur Phosphore'],
+          [cap, '/v', 'ApplicationIcon', '/d', icon],
+          [cap + '\\StartMenu', '/v', 'StartMenuInternet', '/d', 'Phosphore'],
+          [cap + '\\URLAssociations', '/v', 'http', '/d', 'PhosphoreURL'],
+          [cap + '\\URLAssociations', '/v', 'https', '/d', 'PhosphoreURL'],
+          [cap + '\\FileAssociations', '/v', '.htm', '/d', 'PhosphoreURL'],
+          [cap + '\\FileAssociations', '/v', '.html', '/d', 'PhosphoreURL'],
           ['HKCU\\Software\\RegisteredApplications', '/v', 'Phosphore', '/d', 'Software\\Clients\\StartMenuInternet\\Phosphore\\Capabilities'],
         ];
         for (const k of keys) execFile('reg', ['add', ...k, '/f'], () => {});
