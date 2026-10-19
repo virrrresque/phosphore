@@ -70,7 +70,7 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "virrrr1903-alt",
+        "owner": "virrrresque",
         "repo": "phosphore",
         "releaseType": "release"
       }
