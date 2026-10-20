@@ -441,6 +441,9 @@ app.whenReady().then(() => {
     const combo = normKey([i.control && 'ctrl', i.alt && 'alt', i.shift && 'shift', key === ' ' ? 'space' : key].filter(Boolean).join('+'));
     const bound = combo && settings.binds[combo];
     if (bound) return act(() => runInput(bound));
+    // Échap ne doit jamais laisser bloqué en plein écran sans ligne de commande ; F11 bascule, comme dans Chrome.
+    if (key === 'escape') browser.exitFullscreen(); // pas de prevent : la page reçoit aussi Échap
+    if (key === 'f11') return act(() => { if (!browser.exitFullscreen()) win.setFullScreen(!win.isFullScreen()); });
     if (ctrl && !i.shift && key === 't') return act(() => { browser.newTab(); focusPrompt(); });
     if (ctrl && !i.shift && key === 'w') return act(() => tabId && browser.close(tabId));
     if (ctrl && i.shift && key === 't') return act(() => browser.restoreClosed());
@@ -478,13 +481,15 @@ app.whenReady().then(() => {
 
   /** Une ligne tapée : « a ; b » enchaîne des commandes ; un alias est remplacé (un seul niveau, il peut lui-même contenir « ; »). */
   function runInput(text: string) {
-    const parts = text.split(/\s;\s/);
+    // « alias x a ; b » / « bind … a ; b » : le « ; » fait partie de la commande enregistrée, on ne coupe pas.
+    const parts = /^\s*(alias|bind)\s/i.test(text) ? [text] : text.split(/\s;\s/);
     if (parts.length > 1) { parts.slice(0, 50).forEach(runInput); return; }
     const [w, ...rest] = text.trim().split(/\s+/);
     const alias = settings.aliases[w?.toLowerCase() ?? ''];
-    // Alias avec {q} (texte encodé pour une adresse) ou {} (texte tel quel) : les mots tapés y sont mis ; sinon ajoutés à la fin.
-    const expanded = !alias ? text : /\{q\}|\{\}/.test(alias)
-      ? alias.replaceAll('{q}', encodeURIComponent(rest.join(' '))).replaceAll('{}', rest.join(' ')) : [alias, ...rest].join(' ');
+    // Alias avec {q} (texte encodé pour une adresse), {} (texte tel quel) ou {1}…{9} (n-ième mot) ; sinon les mots sont ajoutés à la fin.
+    const expanded = !alias ? text : /\{q\}|\{\}|\{[1-9]\}/.test(alias)
+      ? alias.replaceAll('{q}', encodeURIComponent(rest.join(' '))).replaceAll('{}', rest.join(' ')).replace(/\{([1-9])\}/g, (_, n) => rest[Number(n) - 1] ?? '')
+      : [alias, ...rest].join(' ');
     for (const p of expanded.split(/\s;\s/).slice(0, 50)) {
       const a = parse(p, settings.search);
       if (a) run(a);

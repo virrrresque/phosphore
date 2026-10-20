@@ -471,6 +471,18 @@ export class Browser {
   setOverlay(on: boolean): void { this.overlay = on; this.stack(); }
   /** Panneau « sortie » (vidéo, image) ouvert : la page réelle y est visible. */
   setPanel(on: boolean): void { this.panel = on; this.stack(); }
+  /** Sortie forcée du plein écran d'une page (Échap, F11) : même si la page n'a pas signalé sa sortie, l'interface revient. */
+  exitFullscreen(): boolean {
+    if (!this.fullscreen) return false;
+    const wc = this.shown?.webContents;
+    if (wc && !wc.isDestroyed()) void wc.executeJavaScript('document.fullscreenElement && document.exitFullscreen()', true).catch(() => {});
+    this.fullscreen = null;
+    this.win.setFullScreen(false);
+    this.layout();
+    this.stack();
+    return true;
+  }
+
   textMode(): boolean { const t = this.active(); return !!t && this.hooks.mode(t.url) === 'text'; }
 
   private layout(): void {

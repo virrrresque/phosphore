@@ -735,7 +735,7 @@ function renderInternal() {
     close.title = 'Fermer · Ctrl+C';
     close.setAttribute('aria-label', 'Fermer');
     close.onclick = closeInternal;
-    box.append(close);
+    box.prepend(close); // en tête : un float placé après le texte tomberait sous la dernière ligne
   }
 }
 

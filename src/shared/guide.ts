@@ -109,6 +109,7 @@ export const GUIDE: GuideSection[] = [
   { id: 'keys', title: 'Shortcuts & your commands', intro: 'aliases, key bindings, command files', items: [
     ['alias <name> <command>', 'your own command; "a ; b" chains several', 'alias yt start youtube.com'],
     ['alias <name> …{q}…', '{q} is replaced by what you type after it (encoded for an address)', 'alias yts start https://www.youtube.com/results?search_query={q}'],
+    ['alias <name> …{1} {2}…', 'like a function: {1} is the 1st word typed after the name, {2} the 2nd… "a ; b" runs several commands', 'alias deux start {1} ; start {2}'],
     ['bind <keys> <command>', 'keyboard shortcut (Ctrl or Alt required, except F1-F24)', 'bind alt+y start youtube.com'],
     ['alias rm <name> · bind rm <keys>', 'remove an alias / a shortcut', 'alias'],
     ['source <file.txt>', 'run a file of commands (one per line, # = comment)', 'source'],

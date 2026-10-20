@@ -1,5 +1,5 @@
 // Règles de sécurité appliquées à toutes les vues et à toutes les sessions.
-import { app, BrowserWindow, type Session, type WebContents } from 'electron';
+import { app, BrowserWindow, clipboard, Menu, type MenuItemConstructorOptions, type Session, type WebContents } from 'electron';
 import { permNames } from './settings.js';
 import { externalScheme } from '../shared/safeurl.js';
 
@@ -110,6 +110,34 @@ export function hardenWebContents(rules: OpenRules): void {
           webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, webSecurity: true },
         },
       };
+    });
+
+    // Clic droit sur une page : Electron n'affiche aucun menu, on construit l'essentiel de celui de Chrome.
+    wc.on('context-menu', (_e, p) => {
+      if (rules.isUi(wc)) return;
+      const sep: MenuItemConstructorOptions = { type: 'separator' };
+      const items: MenuItemConstructorOptions[] = [];
+      if (isWebUrl(p.linkURL)) items.push(
+        { label: 'Ouvrir le lien dans un nouvel onglet', click: () => rules.openTab(p.linkURL, false, wc) },
+        { label: 'Ouvrir le lien en arrière-plan', click: () => rules.openTab(p.linkURL, true, wc) },
+        { label: 'Copier l\'adresse du lien', click: () => clipboard.writeText(p.linkURL) }, sep);
+      if (p.mediaType === 'image' && p.srcURL) items.push(
+        ...(isWebUrl(p.srcURL) ? [{ label: 'Ouvrir l\'image dans un nouvel onglet', click: () => rules.openTab(p.srcURL, false, wc) }] : []),
+        { label: 'Copier l\'image', click: () => wc.copyImageAt(p.x, p.y) },
+        { label: 'Enregistrer l\'image sous…', click: () => wc.downloadURL(p.srcURL) },
+        { label: 'Copier l\'adresse de l\'image', click: () => clipboard.writeText(p.srcURL) }, sep);
+      if (p.isEditable) items.push(
+        { role: 'undo', label: 'Annuler', enabled: p.editFlags.canUndo }, { role: 'redo', label: 'Rétablir', enabled: p.editFlags.canRedo }, sep,
+        { role: 'cut', label: 'Couper', enabled: p.editFlags.canCut }, { role: 'copy', label: 'Copier', enabled: p.editFlags.canCopy },
+        { role: 'paste', label: 'Coller', enabled: p.editFlags.canPaste }, { role: 'selectAll', label: 'Tout sélectionner' }, sep);
+      else if (p.selectionText.trim()) items.push({ role: 'copy', label: 'Copier' }, sep);
+      const h = wc.navigationHistory;
+      items.push(
+        { label: 'Précédent', enabled: h.canGoBack(), click: () => h.goBack() },
+        { label: 'Suivant', enabled: h.canGoForward(), click: () => h.goForward() },
+        { label: 'Recharger', click: () => wc.reload() }, sep,
+        { label: 'Inspecter', click: () => wc.inspectElement(p.x, p.y) });
+      Menu.buildFromTemplate(items).popup();
     });
 
     wc.on('did-create-window', (win: BrowserWindow) => {
