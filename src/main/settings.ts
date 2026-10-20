@@ -309,7 +309,7 @@ export function toCommands(s: Settings): string[] {
 /** Droits Electron demandés → nos noms (perm allow <site> <nom>). « media » : caméra et/ou micro selon la demande. */
 export function permNames(permission: string, mediaTypes: string[] = []): string[] {
   if (permission === 'media') return mediaTypes.length ? mediaTypes.map(t => t === 'video' ? 'camera' : 'microphone') : ['camera', 'microphone'];
-  if (permission === 'clipboard-read' || permission === 'clipboard-sanitized-write') return ['clipboard'];
+  if (permission === 'clipboard-read') return ['clipboard'];
   if (permission === 'storage-access' || permission === 'top-level-storage-access' || permission === 'persistent-storage') return ['storage'];
   if (permission === 'midi' || permission === 'midiSysex') return ['midi'];
   if (permission === 'notifications' || permission === 'geolocation') return [permission];

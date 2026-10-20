@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { isLocalHost, suspiciousUrl } from '../src/shared/safeurl.ts';
+import { externalScheme, isLocalHost, suspiciousUrl } from '../src/shared/safeurl.ts';
 
 test('adresses piégées détectées', () => {
   assert.ok(suspiciousUrl('https://paypal.com@phishing.ru/login')); // identifiant dans l'URL
@@ -23,4 +23,11 @@ test('adresses locales / réseau privé reconnues (exemptées de https-only)', (
     assert.equal(isLocalHost(h), true, h);
   for (const h of ['youtube.com', 'www.google.com', '8.8.8.8', '172.15.0.1', '172.32.0.1'])
     assert.equal(isLocalHost(h), false, h);
+});
+
+test('externalScheme : applications externes, jamais les schémas internes ou dangereux', () => {
+  assert.equal(externalScheme('mailto:a@b.c'), 'mailto');
+  assert.equal(externalScheme('zoommtg://zoom.us/join?x=1'), 'zoommtg');
+  for (const u of ['https://a.com', 'http://a.com', 'chrome-extension://x/p.html', 'file:///C:/a.exe', 'javascript:alert(1)', 'search-ms:query=x', 'ms-msdt:/id', 'app://ui/index.html', 'about:blank', 'pas une url'])
+    assert.equal(externalScheme(u), '', u);
 });

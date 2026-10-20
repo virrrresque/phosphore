@@ -36,3 +36,11 @@ export function suspiciousUrl(url: string): string | null {
   if (CONFUSABLE.test(host) && /[a-z]/i.test(host)) return `le nom de domaine mélange plusieurs alphabets (${host}) : peut imiter un autre site`;
   return null;
 }
+
+// Schémas jamais passés à Windows : internes au navigateur, ou détournés par des attaques connues (search-ms, ms-msdt…).
+const BLOCKED_SCHEMES = /^(file|javascript|data|blob|about|chrome|chrome-untrusted|devtools|view-source|filesystem|app|search-ms|search|ms-msdt|ms-officecmd|ms-cxh|ms-cxh-full)$/i;
+/** Lien vers une application externe (mailto:, zoommtg:, claude:…) : son schéma, sinon ''. */
+export function externalScheme(url: string): string {
+  const s = /^([a-z][a-z0-9+.-]*):/i.exec(url)?.[1] ?? '';
+  return !s || /^(https?|chrome-extension)$/i.test(s) || BLOCKED_SCHEMES.test(s) ? '' : s.toLowerCase();
+}

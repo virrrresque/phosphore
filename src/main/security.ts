@@ -1,6 +1,7 @@
 // Règles de sécurité appliquées à toutes les vues et à toutes les sessions.
 import { app, BrowserWindow, type Session, type WebContents } from 'electron';
 import { permNames } from './settings.js';
+import { externalScheme } from '../shared/safeurl.js';
 
 export const isWebUrl = (url: string) => /^https?:\/\//i.test(url);
 
@@ -37,7 +38,8 @@ const hostOf = (u: string | undefined) => { try { return new URL(u ?? '').hostna
 export function hardenSession(ses: Session, allowed: (host: string, perm: string) => boolean = () => false, strict: () => boolean = () => false): void {
   ses.setUserAgent(chromeUserAgent());
   const ok = (permission: string, url: string | undefined, media?: string[]) => {
-    if (permission === 'fullscreen') return true;
+    // Écrire dans le presse-papiers (boutons « copier ») : permis comme dans Chrome ; le lire reste à accorder.
+    if (permission === 'fullscreen' || permission === 'clipboard-sanitized-write') return true;
     const names = permNames(permission, media);
     const host = hostOf(url);
     return !!host && names.length > 0 && names.every(n => allowed(host, n));
@@ -71,6 +73,7 @@ export function hardenSession(ses: Session, allowed: (host: string, perm: string
 export interface OpenRules {
   isUi(wc: WebContents): boolean;
   openTab(url: string, background: boolean, from: WebContents): void;
+  openExternal(url: string): void;
 }
 
 /** Appliqué à chaque webContents créé (interface, onglets, popups). */
@@ -82,6 +85,7 @@ export function hardenWebContents(rules: OpenRules): void {
     const allowedPage = (url: string) => isWebUrl(url) || url.startsWith('chrome-extension://');
     const guard = (e: { preventDefault(): void }, url: string) => {
       if (rules.isUi(wc) || !allowedPage(url)) e.preventDefault(); // l'interface ne navigue jamais ; les sites restent en http(s)/extension
+      if (!rules.isUi(wc) && externalScheme(url)) rules.openExternal(url); // l'utilisateur confirme avant
     };
     wc.on('will-navigate', guard);
     wc.on('will-redirect', guard);
@@ -91,6 +95,7 @@ export function hardenWebContents(rules: OpenRules): void {
     });
 
     wc.setWindowOpenHandler(({ url, disposition }) => {
+      if (!rules.isUi(wc) && externalScheme(url)) rules.openExternal(url);
       if (rules.isUi(wc) || !allowedPage(url)) return { action: 'deny' };
       // Liens "nouvel onglet" (target=_blank, Ctrl+clic) : un onglet, pas une fenêtre.
       if (disposition !== 'new-window') {

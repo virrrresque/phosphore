@@ -280,11 +280,21 @@ app.whenReady().then(() => {
     },
   });
 
+  let askingExternal = false;
   hardenWebContents({
     isUi: wc => wc === ui.webContents,
     openTab: (url, background, from) => {
       const t = browser.tab(browser.tabIdOf(from));
       browser.newTab(url, { background, spaceId: t?.spaceId, private: t?.private }); // un lien d'une page privée reste privé
+    },
+    openExternal: url => {
+      if (askingExternal) return; // une seule question à la fois : un site ne peut pas empiler les fenêtres
+      askingExternal = true;
+      const scheme = url.slice(0, url.indexOf(':'));
+      void dialog.showMessageBox(win, { type: 'question', buttons: ['Ouvrir', 'Annuler'], defaultId: 0, cancelId: 1,
+        message: `Ouvrir l'application externe (${scheme}:) ?`, detail: url.slice(0, 300) })
+        .then(r => { if (r.response === 0) void shell.openExternal(url).catch(() => msg(`aucune application pour ${scheme}:`)); })
+        .finally(() => { askingExternal = false; });
     },
   });
 
