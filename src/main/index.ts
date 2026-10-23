@@ -673,11 +673,19 @@ app.whenReady().then(() => {
         return msg(`ZOOM ${Math.round(wc.getZoomFactor() * 100)} % · zoom par défaut de toutes les pages : set zoom <25-500>`);
       }
       case 'find': {
+        // Page interne (man, settings…) : cherchée dans l'interface ; site : findInPage. Le compteur n/total s'affiche en haut à droite.
+        if (browser.internal || !a.text) send('find', { text: a.text });
         const wc = browser.active() && browser.webContentsOf(browser.active()!.id);
-        if (!wc) return msg('AUCUNE PAGE');
-        if (!a.text) { wc.stopFindInPage('clearSelection'); return msg('RECHERCHE EFFACÉE'); }
-        wc.once('found-in-page', (_e, r) => msg(r.matches ? `${r.matches} RÉSULTAT(S) POUR « ${a.text} » · retapez la commande pour le suivant` : `AUCUN RÉSULTAT POUR « ${a.text} »`));
-        wc.findInPage(a.text, { findNext: lastFind === a.text }); // même texte retapé : résultat suivant
+        if (browser.internal) { lastFind = ''; return; }
+        if (!wc) return a.text ? msg('AUCUNE PAGE') : undefined;
+        if (!a.text) { wc.stopFindInPage('clearSelection'); lastFind = ''; return; }
+        const found = (_e: unknown, r: Electron.Result) => {
+          if (!r.finalUpdate) return;
+          wc.off('found-in-page', found);
+          send('find', { text: a.text, at: r.activeMatchOrdinal, n: r.matches });
+        };
+        wc.on('found-in-page', found);
+        wc.findInPage(a.text, { findNext: lastFind !== a.text }); // findNext = nouvelle recherche ; même texte retapé : résultat suivant
         lastFind = a.text;
         return;
       }

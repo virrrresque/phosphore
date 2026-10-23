@@ -134,7 +134,12 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 /* ── terminal ── */
 #term { grid-row: 2; grid-column: 2; position: relative; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 #term > *:not(#page) { background: var(--bg); }
-#top { padding: 10px 14px 6px; }
+#top { padding: 10px 14px 6px; position: relative; }
+/* find : compteur en haut à droite, surlignage des pages internes. */
+#find { position: absolute; top: 8px; right: 14px; padding: 1px 8px; background: var(--bg-3); color: var(--fg-strong); border: 1px solid var(--line-strong); }
+#find[hidden] { display: none; }
+::highlight(find) { background: var(--c-y); color: var(--on-fg); }
+::highlight(find-on) { background: var(--c-clock); color: var(--on-fg); }
 .pline { display: flex; white-space: pre; min-width: 0; }
 .ps { color: var(--fg); flex-shrink: 0; }
 .pline input { flex: 1; min-width: 0; font: inherit; color: var(--fg); background: transparent; border: 0; outline: 0; padding: 0; caret-color: var(--fg); }

@@ -75,7 +75,7 @@ const tv = new TextView(m => send(m), () => { renderPrompt(); sendLayout(); });
 
 // ── messages du processus principal ──
 window.phos.on((event, data) => {
-  if (event === 'state') { st = data as UiState; if (!st.internal) page = null; render(); boot(); }
+  if (event === 'state') { st = data as UiState; if (!st.internal) page = null; if (findText && findWhere !== where()) showFind(''); render(); boot(); }
   else if (event === 'focus-prompt') {
     const f = (data ?? {}) as { which?: string; text?: string };
     if (f.which === 'cmd') { cmd.focus(); if (f.text) { cmd.value = f.text; cmdInput(); } }
@@ -96,6 +96,7 @@ window.phos.on((event, data) => {
   else if (event === 'collapse') { const c = data as { ids: string[]; on: boolean }; for (const id of c.ids ?? []) if (c.on) collapsed.add(id); else collapsed.delete(id); renderSide(); }
   else if (event === 'bm-q') { bmQuery = String(data); if (page === 'bookmarks') { addr.focus(); addr.value = bmQuery; renderInternal(); } }
   else if (event === 'guide-open') { const id = String(data); if (GUIDE.some(g => g.id === id)) guideOpen.add(id); if (page === 'guide') renderInternal(); }
+  else if (event === 'find') { const d = data as { text: string; at?: number; n?: number }; showFind(d.text, d.at, d.n); }
   else if (event === 'find-tab') { tabQuery = String(data); if (page === 'tabs') { addr.focus(); addr.value = tabQuery; renderInternal(); } }
   else if (event === 'store') { store = data as typeof store; storeOpen = null; if (page === 'store') renderInternal(); }
   else if (event === 'store-detail') { const d = data as StoreDetail; details.set(d.id, d); if (page === 'store') renderInternal(); }
@@ -130,6 +131,38 @@ addEventListener('keydown', e => {
   const ev = keyEvent(e);
   if (ev) playSound(ev);
 }, true);
+
+// find : compteur « 2/7 » en haut à droite ; Entrée (invite vide) : résultat suivant, Échap : fin.
+let findText = '', findWhere = '', findHits: Range[] = [], findAt = 0;
+const where = () => page ?? activeTab()?.id ?? '';
+function showFind(text: string, at?: number, n?: number) {
+  findText = text;
+  findWhere = where();
+  if (!text) { findHits = []; CSS.highlights.clear(); }
+  else if (at === undefined) { // page interne : surlignage dans l'interface (le site, lui, est surligné par Chromium)
+    if (!findHits.length || findHits[0].collapsed || findHits[0].toString().toLowerCase() !== text.toLowerCase()) {
+      findHits = [];
+      const low = text.toLowerCase();
+      const walk = document.createTreeWalker($('internal'), NodeFilter.SHOW_TEXT);
+      for (let node = walk.nextNode(); node && findHits.length < 1000; node = walk.nextNode()) {
+        const t = node.textContent!.toLowerCase();
+        for (let i = t.indexOf(low); i >= 0; i = t.indexOf(low, i + low.length)) {
+          const r = new Range(); r.setStart(node, i); r.setEnd(node, i + low.length); findHits.push(r);
+        }
+      }
+      findAt = 0;
+    } else findAt = (findAt + 1) % findHits.length;
+    CSS.highlights.set('find', new Highlight(...findHits));
+    if (findHits.length) {
+      CSS.highlights.set('find-on', new Highlight(findHits[findAt]));
+      findHits[findAt].startContainer.parentElement?.scrollIntoView({ block: 'center' });
+    }
+    at = findHits.length ? findAt + 1 : 0; n = findHits.length;
+  }
+  const box = $('find');
+  box.hidden = !text;
+  box.textContent = text ? `« ${text.slice(0, 40)} »  ${n ? `${at}/${n}` : 'aucun'}  · Entrée suivant · Échap` : '';
+}
 
 let msgTimer = 0;
 function flash(text: string | (string | Node)[]) {
@@ -933,6 +966,8 @@ function cmdSuggestions(text: string): Sugg[] {
   const low = text.trimStart().toLowerCase();
   // Paramètres de la commande (comme Minecraft) : « ext rm » propose les extensions, « set theme » les thèmes…
   // Choisir une valeur la recopie seulement dans l'invite : Entrée une seconde fois exécute (jamais d'action par erreur).
+  const alias = st.settings.aliases[low.split(/\s+/)[0]];
+  if (alias) return [{ label: `${text.trim()}  — ${alias}`, kind: 'Alias', command: true, run: runText(text) }];
   const values = complete(text, completionCtx());
   if (values.length) return values.map(v => ({ label: `${v.label}  — ${v.desc}`, kind: 'Paramètre', command: true, fill: v.fill, run: fillIn(v.fill) }));
   // Commandes qui commencent par ce qui est tapé (Tab complète, Entrée exécute).
@@ -989,6 +1024,11 @@ cmd.addEventListener('keydown', e => {
     return;
   }
   // Invite vide en mode texte : les touches pilotent la page, comme une appli de terminal.
+  if (!cmd.value && !ask && findText && (e.key === 'Enter' || e.key === 'Escape')) {
+    e.preventDefault();
+    send({ t: 'run', input: e.key === 'Enter' ? `find ${findText}` : 'find' });
+    return;
+  }
   if (!cmd.value && !ask && !sugg.length && textTab()) {
     const keys: Record<string, () => void> = {
       ArrowDown: () => tv.move(1), ArrowUp: () => tv.move(-1), Enter: () => tv.activate(),
@@ -1032,7 +1072,7 @@ cmd.addEventListener('keydown', e => {
     const s = sugg[sel];
     // Le texte tapé gagne s'il est déjà une commande ou une adresse ; sinon (début de mot, ↑↓) la proposition choisie.
     const a = parse(v, st!.settings.search);
-    const complete = a && a.type !== 'error' && !(a.type === 'navigate' && a.url.startsWith(searchUrl('', st!.settings.search)));
+    const complete = !!st!.settings.aliases[v.split(/\s+/)[0].toLowerCase()] || a && a.type !== 'error' && !(a.type === 'navigate' && a.url.startsWith(searchUrl('', st!.settings.search)));
     if (v === '?' && tab && st!.live[tab.id]?.error) send({ t: 'run', input: 'search ' + host(tab.url) });
     else if (s && (sel > 0 || !complete)) { s.run(); if (cmd.value.endsWith(' ') || s.kind === 'Paramètre') return; } // paramètre recopié : Entrée encore pour exécuter
     else if (v) send({ t: 'run', input: v });
