@@ -190,8 +190,30 @@ function cell(text: string | HTMLElement, width: number, cls = '') {
   if (typeof text === 'string') c.title = text;
   return c;
 }
+/**
+ * Largeurs de colonnes : chaque colonne s'élargit jusqu'à son plus long texte tant que la largeur de l'écran le permet ;
+ * on ne coupe (« … ») que ce qui ne tient vraiment pas, en rognant d'abord les colonnes les plus larges.
+ */
+function fitWidths(widths: number[], rows: (string | HTMLElement)[][], indent: number): number[] {
+  const probe = el('span', '0'.repeat(100), 'cell');
+  $('term').append(probe);
+  const ch = probe.getBoundingClientRect().width / 101 || 8; // 100 caractères + 1ch de marge
+  probe.remove();
+  const avail = Math.floor(($('term').clientWidth - 40) / ch) - indent;
+  const need = widths.map((w, i) => Math.max(w, ...rows.map(r => (typeof r[i] === 'string' ? r[i] as string : r[i]?.textContent ?? '').length + 1)));
+  const out = [...need];
+  // Trop large : on rogne la colonne la plus large (jamais sous sa largeur prévue) jusqu'à ce que ça tienne.
+  for (let over = out.reduce((a, b) => a + b, 0) - avail; over > 0;) {
+    const i = out.reduce((m, w, k) => (w - widths[k] > out[m] - widths[m] ? k : m), 0);
+    const cut = Math.min(over, out[i] - widths[i]);
+    if (cut <= 0) break;
+    out[i] -= cut; over -= cut;
+  }
+  return out;
+}
 /** Tableau façon PowerShell : en-tête vert souligné de tirets, puis les lignes. */
 function grid(head: string[], widths: number[], rows: (string | HTMLElement)[][], cls: (string | undefined)[][] = [], indent = ''): (string | HTMLElement)[] {
+  widths = fitWidths(widths, [head, ...rows], indent.length);
   const line = (cells: (string | HTMLElement)[], k?: number, hc?: string) =>
     [indent, ...cells.map((c, i) => cell(c, widths[i] ?? 20, hc ?? (k === undefined ? '' : cls[k]?.[i] ?? ''))), '\n'];
   const top = head.length ? [...line(head, undefined, 'g'), ...line(head.map(h => '-'.repeat(h.length)), undefined, 'g')] : []; // sans en-tête : lignes seules
@@ -570,7 +592,7 @@ function renderInternal() {
         const d = new Date(v.t);
         const label = day(d);
         if (label !== cur) { cur = label; lines.push(...L(), ...L([label, 'g']), ...L(['-'.repeat(label.length), 'g'])); }
-        const a = el('span', (v.title || host(v.url)).slice(0, 70), 'a' + (picked.has(v.t) ? ' picked' : ''));
+        const a = el('span', (v.title || host(v.url)).slice(0, 300), 'a' + (picked.has(v.t) ? ' picked' : ''));
         a.dataset.url = v.url;
         a.dataset.t = String(v.t);
         a.title = v.url + ' · Ctrl+clic : sélectionner';
