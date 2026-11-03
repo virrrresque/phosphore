@@ -30,6 +30,7 @@ const firefoxUserAgent = () => {
 export const userAgentFor = (url: string) => isGoogleLogin(url) ? firefoxUserAgent() : chromeUserAgent();
 
 const hostOf = (u: string | undefined) => { try { return new URL(u ?? '').hostname.replace(/^www\./, ''); } catch { return ''; } };
+const isGoogleHost = (u: string) => /(^|\.)(google\.[a-z.]+|youtube\.com|gstatic\.com|googleapis\.com)$/i.test(hostOf(u));
 
 /**
  * Permissions : tout est refusé, sauf le plein écran (vidéos) et ce que l'utilisateur a accordé à un site (perm allow).
@@ -57,7 +58,8 @@ export function hardenSession(ses: Session, allowed: (host: string, perm: string
       // Firefox n'envoie pas de client hints : on les retire pour rester cohérent avec son User-Agent.
       for (const k of Object.keys(d.requestHeaders)) if (/^sec-ch-ua/i.test(k)) delete d.requestHeaders[k];
       d.requestHeaders['User-Agent'] = userAgentFor(d.url);
-    } else if (d.requestHeaders['sec-ch-ua'] || d.requestHeaders['Sec-CH-UA']) {
+    } else if (isGoogleHost(d.url) && (d.requestHeaders['sec-ch-ua'] || d.requestHeaders['Sec-CH-UA'])) {
+      // Ailleurs les client hints restent ceux d'Electron : ils doivent égaler navigator.userAgentData (Cloudflare Turnstile compare les deux).
       d.requestHeaders['sec-ch-ua'] = brands;
       d.requestHeaders['sec-ch-ua-full-version-list'] = `"Chromium";v="${v}.0.0.0", "Google Chrome";v="${v}.0.0.0", "Not=A?Brand";v="99.0.0.0"`;
     }

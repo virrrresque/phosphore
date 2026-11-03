@@ -39,6 +39,7 @@ if (app.isPackaged && ['remote-debugging-port', 'remote-debugging-pipe', 'inspec
 // Retire le drapeau « AutomationControlled » (navigator.webdriver) : Phosphore est un vrai navigateur, pas un robot.
 // Certains sites (connexion Google) refusent sinon la connexion.
 app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled');
+app.userAgentFallback = chromeUserAgent(); // sans Electron/x ni nom de l'appli, aussi pour les workers et toute session
 
 protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: true, secure: true } }]);
 Menu.setApplicationMenu(null);
