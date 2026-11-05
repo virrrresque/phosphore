@@ -716,7 +716,8 @@ app.whenReady().then(() => {
           if (!e) return msg(`ext open : extension n° ${a.n} non chargée (ext on ${a.n} d'abord)`);
           const m = e.manifest as { action?: { default_popup?: string }; browser_action?: { default_popup?: string }; page_action?: { default_popup?: string }; options_page?: string; options_ui?: { page?: string } };
           const popup = m.action?.default_popup ?? m.browser_action?.default_popup ?? m.page_action?.default_popup ?? m.options_ui?.page ?? m.options_page ?? '';
-          browser.newTab(e.url + popup); // e.url = chrome-extension://<id>/
+          // uilocation=tab : sans ce paramètre Bitwarden se croit dans un popup et fige la page à 480 px de large (côté droit coupé).
+          browser.newTab(e.url + popup + (popup && !popup.includes('?') ? '?uilocation=tab' : '')); // e.url = chrome-extension://<id>/
           return msg(`${e.name} ouvert dans un onglet. Connecte-toi ici ; l'auto-remplissage sur les pages fonctionne à part.`);
         }
         if (a.op === 'rm' || a.op === 'on' || a.op === 'off' || a.op === 'update') {
