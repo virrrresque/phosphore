@@ -60,13 +60,16 @@ contextBridge.executeInMainWorld({
     // tabs.query({ active: true }) : Electron ne sait pas quel onglet est affiché (réponse vide). Phosphore donne le dernier
     // site affiché, celui que le popup de Chrome verrait derrière lui (Bitwarden : identifiants proposés pour ce site).
     const query = tabs?.query as ((q: object) => Promise<{ id?: number }[]>) | undefined;
+    let shown: number | null = null; // dernier onglet affiché poussé par Phosphore (événement « activated »), si la demande échoue
     if (query && bridge) try {
       const real = query.bind(tabs);
       const wants = (q: Record<string, unknown>) => !!(q.active || q.currentWindow || q.lastFocusedWindow || q.highlighted);
       Object.defineProperty(tabs, 'query', { configurable: true, value: (q: Record<string, unknown> = {}, cb?: Cb) => {
         const p = (async () => {
           if (!wants(q)) return real(q);
-          const id = await bridge.activeTab().catch(() => null);
+          // Sans réponse en 300 ms (worker pas encore branché), l'onglet poussé par Phosphore sert : une demande sans réponse bloquerait l'extension.
+          const asked = await Promise.race([bridge.activeTab().catch(() => null), new Promise<null>(r => setTimeout(() => r(null), 300))]);
+          const id = asked ?? shown;
           if (id == null) return real(q);
           const { active: _a, currentWindow: _c, lastFocusedWindow: _l, highlighted: _h, windowId: _w, ...rest } = q;
           return (await real(rest)).filter(t => t.id === id).map(t => ({ ...t, active: true, highlighted: true, windowId: 1 }));
@@ -87,7 +90,10 @@ contextBridge.executeInMainWorld({
           } });
         } catch { /* API figée */ }
       }
-      bridge.onTabEvent((type, args) => evs[type]?.forEach(f => { try { f(...args); } catch (e) { console.error(e); } }));
+      bridge.onTabEvent((type, args) => {
+        if (type === 'activated') shown = (args[0] as { tabId?: number } | undefined)?.tabId ?? shown;
+        evs[type]?.forEach(f => { try { f(...args); } catch (e) { console.error(e); } });
+      });
     }
     const runtime = c.runtime as Record<string, unknown>;
     // runtime.onInstalled : Electron ne l'envoie jamais. Envoyé une fois (« install »), au premier démarrage du service worker

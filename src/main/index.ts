@@ -122,17 +122,26 @@ function openExtTab(url: unknown, active: unknown, scope: string) {
   return id == null ? null : { id, index: 0, windowId: 1, url: u.href, active: active !== false, highlighted: active !== false, pinned: false, incognito: false, status: 'loading' };
 }
 const loaded = new WeakMap<Session, Set<string>>();
+const wired = new WeakSet<Electron.ServiceWorkerMain>();
 function loadExtensions(s: Session): Promise<unknown> {
   if (!settings) return Promise.resolve();
   // API chrome.* absentes d'Electron, ajoutées inertes avant le démarrage des service workers (sinon Bitwarden plante).
   if (!loaded.has(s)) {
     s.registerPreloadScript({ type: 'service-worker', filePath: path.join(__dirname, '../preload/ext-shim.js') });
     // Le service worker d'une extension demande quel site est affiché (tabs.query active, voir ext-shim).
+    // Branché dès que le worker existe (à « starting » il peut ne pas exister encore) ; une fois en marche, il reçoit
+    // aussi l'onglet affiché, qu'il garde en mémoire : il le connaît même si sa demande échoue.
     s.serviceWorkers.on('running-status-changed', ({ versionId, runningStatus }) => {
-      if (runningStatus !== 'starting') return;
+      if (runningStatus !== 'starting' && runningStatus !== 'running') return;
       const w = s.serviceWorkers.getWorkerFromVersionID(versionId);
-      if (!w?.scope.startsWith('chrome-extension://')) return;
-      try { w.ipc.handle('ext-active-tab', () => activeWebTab()); w.ipc.handle('ext-open-tab', (_e, url: unknown, active: unknown) => openExtTab(url, active, w.scope)); } catch { /* déjà branché */ }
+      if (!w || w.isDestroyed() || !w.scope.startsWith('chrome-extension://')) return;
+      if (!wired.has(w)) {
+        wired.add(w);
+        try { w.ipc.handle('ext-active-tab', () => activeWebTab()); } catch { /* déjà branché */ }
+        try { w.ipc.handle('ext-open-tab', (_e, url: unknown, active: unknown) => openExtTab(url, active, w.scope)); } catch { /* déjà branché */ }
+      }
+      const id = activeWebTab();
+      if (runningStatus === 'running' && id != null) try { w.send('ext-tab-event', 'activated', [{ tabId: id, windowId: 1 }]); } catch { /* arrêté entre-temps */ }
     });
   }
   const done = loaded.get(s) ?? new Set<string>();
