@@ -1,5 +1,5 @@
 // Onglets, dossiers et Spaces. Seul endroit qui crée ou détruit les vues web.
-import { app, BaseWindow, WebContentsView, type Input, type Rectangle, type WebContents } from 'electron';
+import { app, BaseWindow, WebContentsView, type Input, type Rectangle, type Session as ElectronSession, type WebContents } from 'electron';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { VIRTUAL_WIDTH } from './webtext.js';
@@ -50,6 +50,8 @@ export interface Hooks {
   ready(wc: WebContents): void;
   /** Chargement commencé / fini, ou page détruite : relayé aux extensions (tabs.onUpdated / onRemoved). */
   tabStatus(tabId: string, wcId: number, status: 'loading' | 'complete' | 'removed'): void;
+  /** Extensions de cette session encore en chargement (démarrage) : la première page attend, sinon elle n'aurait pas leurs scripts. */
+  extensionsReady(s: ElectronSession): Promise<unknown> | undefined;
   /** Mode d'affichage d'une adresse : texte (terminal) ou web (vraie page). */
   mode(url: string): 'text' | 'web';
   /** Partition (cookies, stockage) d'un Space : la sienne, ou une commune à tous (set spaces true). */
@@ -587,7 +589,11 @@ export class Browser {
       this.sleep(tab.id);
       this.show();
     });
-    if (tab.url) wc.loadURL(tab.url).catch(() => {}); // les échecs passent par did-fail-load
+    // Les échecs passent par did-fail-load. Au démarrage, on attend les extensions de la session (3 s au plus) :
+    // un onglet restauré chargé avant elles n'aurait pas leurs scripts (Bitwarden absent des champs, bloqueurs inactifs).
+    const go = () => { if (!wc.isDestroyed() && !wc.getURL() && tab.url) wc.loadURL(tab.url).catch(() => {}); };
+    const ready = tab.url ? this.hooks.extensionsReady(wc.session) : undefined;
+    if (ready) void Promise.race([ready, new Promise(r => setTimeout(r, 3000))]).then(go); else go();
     return view;
   }
 }

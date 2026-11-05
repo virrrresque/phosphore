@@ -96,6 +96,19 @@ contextBridge.executeInMainWorld({
       });
     }
     const runtime = c.runtime as Record<string, unknown>;
+    // Messages des pages reçus pendant le démarrage du worker (30 s), rejoués aux écouteurs que l'extension pose plus tard.
+    // Bitwarden pose le sien après ses migrations : sans ça, une page chargée au démarrage (onglet restauré) n'est jamais équipée.
+    const onMessage = runtime.onMessage as { addListener?: (f: (...a: unknown[]) => unknown) => void } | undefined;
+    if (!isPage && bridge && onMessage?.addListener) try {
+      const add = onMessage.addListener.bind(onMessage), t0 = Date.now(), early: unknown[][] = [];
+      add((m: unknown, sender: unknown) => {
+        if (Date.now() - t0 < 30_000 && early.length < 50 && (sender as { tab?: unknown } | undefined)?.tab) early.push([m, sender]);
+      });
+      Object.defineProperty(onMessage, 'addListener', { configurable: true, value: (f: (...a: unknown[]) => unknown) => {
+        add(f);
+        if (Date.now() - t0 < 30_000) for (const [m, s] of early.slice()) setTimeout(() => { try { f(m, s, () => {}); } catch (e) { console.error(e); } }, 0);
+      } });
+    } catch { /* API figée */ }
     // runtime.onInstalled : Electron ne l'envoie jamais. Envoyé une fois (« install »), au premier démarrage du service worker
     // dans Phosphore, mémorisé dans le stockage de l'extension. Bitwarden y active son menu dans les champs.
     const storage = (c.storage as { local?: { get(k: string): Promise<Record<string, unknown>>; set(v: object): Promise<void> } } | undefined)?.local;

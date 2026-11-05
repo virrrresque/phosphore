@@ -68,7 +68,7 @@ app.on('session-created', s => {
     cb({});
   });
   // Les extensions choisies par l'utilisateur sont chargées dans chaque Space (partition persist:space-…).
-  if (s.storagePath?.includes(`${path.sep}Partitions${path.sep}space-`)) setImmediate(() => loadExtensions(s));
+  if (s.storagePath?.includes(`${path.sep}Partitions${path.sep}space-`)) extReady.set(s, new Promise(r => setImmediate(() => void loadExtensions(s).then(r, r))));
   s.on('will-download', (_e, item) => {
     const st = settings ?? startSettings;
     const dir = st.downloadDir || app.getPath('downloads');
@@ -122,6 +122,8 @@ function openExtTab(url: unknown, active: unknown, scope: string) {
   return id == null ? null : { id, index: 0, windowId: 1, url: u.href, active: active !== false, highlighted: active !== false, pinned: false, incognito: false, status: 'loading' };
 }
 const loaded = new WeakMap<Session, Set<string>>();
+// Chargement des extensions de chaque session au démarrage : les premières pages l'attendent (Browser.view).
+const extReady = new WeakMap<Session, Promise<unknown>>();
 const wired = new WeakSet<Electron.ServiceWorkerMain>();
 function loadExtensions(s: Session): Promise<unknown> {
   if (!settings) return Promise.resolve();
@@ -320,6 +322,7 @@ app.whenReady().then(() => {
       if (last && last.title !== title) { last.title = title; saveHistory(); }
     },
     ready: restyle,
+    extensionsReady: s => extReady.get(s),
     tabStatus(tabId, wcId, status) {
       if (status === 'removed') return tabEvent('removed', [wcId, { windowId: 1, isWindowClosing: false }]);
       const t = browser.tab(tabId), wc = browser.webContentsOf(tabId);
