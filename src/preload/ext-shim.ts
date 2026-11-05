@@ -12,6 +12,9 @@ contextBridge.executeInMainWorld({
     const ns = () => new Proxy({} as Record<string, unknown>, {
       get: (t, k) => typeof k === 'symbol' || k === 'then' ? undefined : (t[k] ??= k.startsWith('on') ? event() : call),
     });
+    // Popup ouvert dans un onglet : Chrome répond « undefined » dans un vrai popup, Bitwarden s'en sert pour savoir où il est.
+    const tabs = c.tabs as Record<string, unknown> | undefined;
+    if (tabs && !tabs.getCurrent) try { Object.defineProperty(tabs, 'getCurrent', { value: (cb?: (t?: unknown) => void) => { cb?.(); return Promise.resolve(undefined); }, configurable: true }); } catch { /* API figée */ }
     for (const n of ['webNavigation', 'contextMenus', 'notifications', 'privacy', 'sidePanel', 'offscreen', 'idle', 'windows', 'commands', 'permissions'])
       if (!c[n]) try { Object.defineProperty(c, n, { value: ns(), configurable: true }); } catch { /* API figée : tant pis */ }
   },

@@ -1,6 +1,7 @@
 // Onglets, dossiers et Spaces. Seul endroit qui crée ou détruit les vues web.
 import { app, BaseWindow, WebContentsView, type Input, type Rectangle, type WebContents } from 'electron';
 import { randomUUID } from 'node:crypto';
+import path from 'node:path';
 import { VIRTUAL_WIDTH } from './webtext.js';
 import type { SoundEvent } from '../shared/sounds.js';
 import { neverSleeps, realClock, sweep, TabTimers, type Clock, type SweepOptions, type TabFacts } from './sleep.js';
@@ -541,6 +542,8 @@ export class Browser {
         partition: tab.private ? PRIVATE_PARTITION : this.hooks.partition(tab.spaceId),
         sandbox: true, contextIsolation: true, nodeIntegration: false, webSecurity: true,
         allowRunningInsecureContent: false, experimentalFeatures: false, navigateOnDragDrop: false,
+        // Page d'extension ouverte par « ext open » (popup Bitwarden…) : API chrome.* absentes d'Electron ajoutées. Jamais pour un site.
+        ...(tab.url.startsWith('chrome-extension://') ? { preload: path.join(__dirname, '../preload/ext-shim.js') } : {}),
       },
     });
     view.setBackgroundColor('#0c0c0c');
