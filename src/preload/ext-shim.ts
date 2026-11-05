@@ -2,7 +2,16 @@
 // Electron n'a pas chrome.webNavigation, contextMenus, notifications, windows… Bitwarden lit chrome.webNavigation.onCommitted
 // au démarrage, son service worker plante et son popup reste vide. On ajoute ces API absentes en version inerte
 // (écouteurs ignorés, appels résolus sans effet), sauf chrome.windows qui ouvre un onglet Phosphore.
-import { contextBridge } from 'electron';
+import { contextBridge, ipcRenderer } from 'electron';
+
+// Pont vers Phosphore, seulement dans une extension : onglet du site affiché (tabs.query active), fermer l'onglet (window.close).
+// L'adresse est lue dans le monde de la page : le monde isolé d'un service worker n'a pas de « location ».
+const here = String(contextBridge.executeInMainWorld({ func: () => String((globalThis as { location?: { href?: string } }).location?.href ?? '') }));
+if (here.startsWith('chrome-extension://'))
+  contextBridge.exposeInMainWorld('__phosExt', {
+    activeTab: () => ipcRenderer.invoke('ext-active-tab') as Promise<number | null>,
+    close: () => ipcRenderer.send('ext-close'),
+  });
 
 contextBridge.executeInMainWorld({
   func: () => {
@@ -26,14 +35,36 @@ contextBridge.executeInMainWorld({
       if (g.open) g.open(url, '_blank');
       else void (tabs?.create as ((o: object) => Promise<unknown>) | undefined)?.({ url })?.catch?.(() => {});
     };
+    const bridge = (globalThis as { __phosExt?: { activeTab(): Promise<number | null>; close(): void } }).__phosExt;
+    // Page d'extension dans un onglet : window.close (bouton retour/fermer de Bitwarden) ferme l'onglet, comme un popup.
+    const isPage = typeof (globalThis as { document?: unknown }).document === 'object';
+    if (isPage && bridge) (globalThis as { close?: () => void }).close = () => bridge.close();
     def(c, 'windows', ns({
       WINDOW_ID_NONE: -1, WINDOW_ID_CURRENT: -2,
       get: fn(win), getCurrent: fn(win), getLastFocused: fn(win), getAll: fn(() => [win()]),
       create: fn((o?: unknown) => { open((o as { url?: unknown } | undefined)?.url); return win(); }),
-      update: fn(win), remove: fn(() => undefined),
+      update: fn(win), remove: fn(() => { if (isPage) bridge?.close(); }),
     }));
     // Popup ouvert dans un onglet : Chrome répond « undefined » dans un vrai popup, Bitwarden s'en sert pour savoir où il est.
     if (tabs) def(tabs, 'getCurrent', fn(() => undefined));
+    // tabs.query({ active: true }) : Electron ne sait pas quel onglet est affiché (réponse vide). Phosphore donne le dernier
+    // site affiché, celui que le popup de Chrome verrait derrière lui (Bitwarden : identifiants proposés pour ce site).
+    const query = tabs?.query as ((q: object) => Promise<{ id?: number }[]>) | undefined;
+    if (query && bridge) try {
+      const real = query.bind(tabs);
+      const wants = (q: Record<string, unknown>) => !!(q.active || q.currentWindow || q.lastFocusedWindow || q.highlighted);
+      Object.defineProperty(tabs, 'query', { configurable: true, value: (q: Record<string, unknown> = {}, cb?: Cb) => {
+        const p = (async () => {
+          if (!wants(q)) return real(q);
+          const id = await bridge.activeTab().catch(() => null);
+          if (id == null) return real(q);
+          const { active: _a, currentWindow: _c, lastFocusedWindow: _l, highlighted: _h, windowId: _w, ...rest } = q;
+          return (await real(rest)).filter(t => t.id === id).map(t => ({ ...t, active: true, highlighted: true, windowId: 1 }));
+        })();
+        if (typeof cb === 'function') void p.then(cb, () => cb([]));
+        return p;
+      } });
+    } catch { /* API figée */ }
     const runtime = c.runtime as Record<string, unknown>;
     def(runtime, 'getPlatformInfo', fn(() => ({ os: 'win', arch: 'x86-64', nacl_arch: 'x86-64' })));
     for (const n of ['webNavigation', 'contextMenus', 'notifications', 'privacy', 'sidePanel', 'offscreen', 'idle', 'commands', 'permissions']) def(c, n, ns());

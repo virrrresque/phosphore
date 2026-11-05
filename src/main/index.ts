@@ -90,11 +90,23 @@ function applyProxy(s: Session) {
   void s.setProxy(p ? { proxyRules: p } : { mode: 'system' }).catch(() => {});
 }
 
+// Dernier site (http/https) affiché : l'onglet « actif » vu par les extensions, même quand leur page est au premier plan.
+let lastWebTab: string | undefined;
+const activeWebTab = () => (lastWebTab && browser?.webContentsOf(lastWebTab)?.id) ?? null;
 const loaded = new WeakMap<Session, Set<string>>();
 function loadExtensions(s: Session): Promise<unknown> {
   if (!settings) return Promise.resolve();
   // API chrome.* absentes d'Electron, ajoutées inertes avant le démarrage des service workers (sinon Bitwarden plante).
-  if (!loaded.has(s)) s.registerPreloadScript({ type: 'service-worker', filePath: path.join(__dirname, '../preload/ext-shim.js') });
+  if (!loaded.has(s)) {
+    s.registerPreloadScript({ type: 'service-worker', filePath: path.join(__dirname, '../preload/ext-shim.js') });
+    // Le service worker d'une extension demande quel site est affiché (tabs.query active, voir ext-shim).
+    s.serviceWorkers.on('running-status-changed', ({ versionId, runningStatus }) => {
+      if (runningStatus !== 'starting') return;
+      const w = s.serviceWorkers.getWorkerFromVersionID(versionId);
+      if (!w?.scope.startsWith('chrome-extension://')) return;
+      try { w.ipc.handle('ext-active-tab', () => activeWebTab()); } catch { /* déjà branché */ }
+    });
+  }
   const done = loaded.get(s) ?? new Set<string>();
   loaded.set(s, done);
   const jobs: Promise<unknown>[] = [];
@@ -245,6 +257,8 @@ app.whenReady().then(() => {
   const persist = () => save('session', { ...browser.s, items: browser.s.items.filter(i => i.kind !== 'tab' || !i.private) });
   browser = new Browser(win, ui, sess, {
     changed() {
+      const cur = browser?.active();
+      if (cur && /^https?:/.test(cur.url)) lastWebTab = cur.id;
       clearTimeout(saveTimer);
       saveTimer = setTimeout(persist, 500);
       pushState();
@@ -1528,6 +1542,13 @@ app.whenReady().then(() => {
   const isId = (v: unknown): v is string => typeof v === 'string' && ID.test(v);
   const num = (v: unknown) => typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 1e5;
 
+  // Pages d'extension ouvertes par « ext open » (preload ext-shim) : site affiché, et window.close qui ferme leur onglet.
+  const fromExt = (e: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent) => !!e.senderFrame?.url.startsWith('chrome-extension://');
+  ipcMain.handle('ext-active-tab', e => fromExt(e) ? activeWebTab() : null);
+  ipcMain.on('ext-close', e => {
+    const id = fromExt(e) ? browser.tabIdOf(e.sender) : undefined;
+    if (id) browser.close(id);
+  });
   ipcMain.on('ui', (e, m: unknown) => {
     if (e.sender !== ui.webContents || !e.senderFrame?.url.startsWith('app://ui/')) return;
     if (!m || typeof m !== 'object') return;
