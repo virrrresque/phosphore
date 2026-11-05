@@ -84,7 +84,8 @@ export function hardenWebContents(rules: OpenRules): void {
     wc.on('will-attach-webview', e => e.preventDefault());
 
     // Pages autorisées : http(s) pour les sites, et chrome-extension:// pour les pages d'une extension (popup ouvert avec « ext open »).
-    const allowedPage = (url: string) => isWebUrl(url) || url.startsWith('chrome-extension://');
+    // about:blank et blob: comme Chrome : popups remplies par la page (OAuth, impression, fichier généré).
+    const allowedPage = (url: string) => isWebUrl(url) || /^(chrome-extension:\/\/|blob:https?:|about:blank($|[?#]))/i.test(url);
     const guard = (e: { preventDefault(): void }, url: string) => {
       if (rules.isUi(wc) || !allowedPage(url)) e.preventDefault(); // l'interface ne navigue jamais ; les sites restent en http(s)/extension
       if (!rules.isUi(wc) && externalScheme(url)) rules.openExternal(url); // l'utilisateur confirme avant
@@ -100,7 +101,8 @@ export function hardenWebContents(rules: OpenRules): void {
       if (!rules.isUi(wc) && externalScheme(url)) rules.openExternal(url);
       if (rules.isUi(wc) || !allowedPage(url)) return { action: 'deny' };
       // Liens "nouvel onglet" (target=_blank, Ctrl+clic) : un onglet, pas une fenêtre.
-      if (disposition !== 'new-window') {
+      // about:blank : la page écrit dedans par window.opener, il lui faut une vraie fenêtre, pas un onglet.
+      if (disposition !== 'new-window' && !/^about:blank/i.test(url)) {
         rules.openTab(url, disposition === 'background-tab', wc);
         return { action: 'deny' };
       }
