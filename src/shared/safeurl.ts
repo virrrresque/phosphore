@@ -44,3 +44,16 @@ export function externalScheme(url: string): string {
   const s = /^([a-z][a-z0-9+.-]*):/i.exec(url)?.[1] ?? '';
   return !s || /^(https?|chrome-extension)$/i.test(s) || BLOCKED_SCHEMES.test(s) ? '' : s.toLowerCase();
 }
+
+/** « chrome-extension://<id> » d'une adresse d'extension ('' sinon). URL.origin vaut « null » pour ce schéma (non spécial). */
+export function extOrigin(url: string): string {
+  try { const u = new URL(url); return u.protocol === 'chrome-extension:' && u.host ? 'chrome-extension://' + u.host : ''; } catch { return ''; }
+}
+
+/** tabs.create d'une extension : adresse résolue si c'est un site http(s) ou une page de cette même extension, sinon null. */
+export function extTabUrl(url: unknown, scope: string): string | null {
+  let u: URL;
+  try { u = new URL(String(url).slice(0, 4096), scope); } catch { return null; }
+  const own = extOrigin(scope);
+  return /^https?:$/.test(u.protocol) || (own !== '' && extOrigin(u.href) === own) ? u.href : null;
+}

@@ -12,6 +12,9 @@ if (here.startsWith('chrome-extension://'))
     activeTab: () => ipcRenderer.invoke('ext-active-tab') as Promise<number | null>,
     close: () => ipcRenderer.send('ext-close'),
     openTab: (url: string, active: boolean) => ipcRenderer.invoke('ext-open-tab', String(url).slice(0, 4096), !!active) as Promise<object | null>,
+    // chrome.storage.onChanged entre la page et le service worker de l'extension : Electron ne le relaie pas.
+    storageChanged: (area: string, changes: object) => ipcRenderer.send('ext-storage', String(area), changes),
+    onStorage: (cb: (area: string, changes: object) => void) => { ipcRenderer.on('ext-storage', (_e, area: string, changes: object) => cb(area, changes)); },
     // Événements d'onglets fabriqués par Phosphore (service worker seulement).
     onTabEvent: (cb: (type: string, args: unknown[]) => void) => { ipcRenderer.on('ext-tab-event', (_e, type: string, args: unknown[]) => cb(type, args)); },
   });
@@ -39,7 +42,7 @@ contextBridge.executeInMainWorld({
       if (b) void b.openTab(url, true).catch(() => {});
       else if (g.open) g.open(url, '_blank');
     };
-    const bridge = (globalThis as { __phosExt?: { activeTab(): Promise<number | null>; close(): void; openTab(url: string, active: boolean): Promise<object | null>; onTabEvent(cb: (type: string, args: unknown[]) => void): void } }).__phosExt;
+    const bridge = (globalThis as { __phosExt?: { activeTab(): Promise<number | null>; close(): void; openTab(url: string, active: boolean): Promise<object | null>; storageChanged(area: string, changes: object): void; onStorage(cb: (area: string, changes: object) => void): void; onTabEvent(cb: (type: string, args: unknown[]) => void): void } }).__phosExt;
     // Page d'extension dans un onglet : window.close (bouton retour/fermer de Bitwarden) ferme l'onglet, comme un popup.
     const isPage = typeof (globalThis as { document?: unknown }).document === 'object';
     if (isPage && bridge) (globalThis as { close?: () => void }).close = () => bridge.close();
@@ -96,6 +99,48 @@ contextBridge.executeInMainWorld({
       });
     }
     const runtime = c.runtime as Record<string, unknown>;
+    // chrome.storage.onChanged : Electron ne le transmet pas d'un contexte de l'extension à l'autre (page ↔ service worker).
+    // Bitwarden déverrouillé dans son onglet écrit la clé dans storage.session ; sans ce relais son service worker reste verrouillé.
+    // Chaque écriture est relayée par Phosphore aux autres contextes de l'extension (même session), qui avertissent leurs écouteurs.
+    type Fn = (...a: unknown[]) => unknown;
+    type Area = { set?: Fn; remove?: Fn; clear?: Fn; onChanged?: { addListener?: Fn; removeListener?: Fn } };
+    const st = c.storage as (Record<string, Area | undefined> & { onChanged?: Area['onChanged'] }) | undefined;
+    if (st && bridge) {
+      const track = (ev: Area['onChanged'], set: Set<Fn>) => {
+        if (!ev?.addListener) return;
+        const add = ev.addListener.bind(ev), rm = ev.removeListener?.bind(ev);
+        try {
+          Object.defineProperty(ev, 'addListener', { configurable: true, value: (f: Fn) => { set.add(f); add(f); } });
+          Object.defineProperty(ev, 'removeListener', { configurable: true, value: (f: Fn) => { set.delete(f); rm?.(f); } });
+        } catch { /* API figée */ }
+      };
+      const all = new Set<Fn>(), byArea: Record<string, Set<Fn>> = {};
+      track(st.onChanged, all);
+      const done = (p: Promise<unknown>, cb: unknown) => { if (typeof cb === 'function') void p.then(() => (cb as Fn)(), () => (cb as Fn)()); return p; };
+      for (const area of ['local', 'session', 'sync']) {
+        const a = st[area];
+        if (!a?.set) continue;
+        track(a.onChanged, byArea[area] = new Set());
+        const emit = (changes: Record<string, object>) => { if (Object.keys(changes).length) try { bridge.storageChanged(area, changes); } catch { /* valeur non transmissible */ } };
+        const keysOf = (k: unknown) => (Array.isArray(k) ? k : [k]).filter((x): x is string => typeof x === 'string');
+        const set = a.set.bind(a), remove = a.remove?.bind(a), clear = a.clear?.bind(a);
+        try {
+          Object.defineProperty(a, 'set', { configurable: true, value: (items: Record<string, unknown>, cb?: unknown) => done(Promise.resolve(set(items)).then(() => {
+            emit(Object.fromEntries(Object.entries(items ?? {}).map(([k, v]) => [k, { newValue: v }])));
+          }), cb) });
+          if (remove) Object.defineProperty(a, 'remove', { configurable: true, value: (k: unknown, cb?: unknown) => done(Promise.resolve(remove(k)).then(() => {
+            emit(Object.fromEntries(keysOf(k).map(x => [x, {}])));
+          }), cb) });
+          if (clear) Object.defineProperty(a, 'clear', { configurable: true, value: (cb?: unknown) => done(Promise.resolve(clear()).then(() => emit({ '*': { cleared: true } })), cb) });
+        } catch { /* API figée */ }
+      }
+      bridge.onStorage((area, changes) => {
+        const ch = changes as Record<string, unknown>;
+        if ('*' in ch) return; // clear : l'autre contexte relira le stockage
+        all.forEach(f => { try { f(ch, area); } catch (e) { console.error(e); } });
+        byArea[area]?.forEach(f => { try { f(ch); } catch (e) { console.error(e); } });
+      });
+    }
     // Messages des pages reçus pendant le démarrage du worker (30 s), rejoués aux écouteurs que l'extension pose plus tard.
     // Bitwarden pose le sien après ses migrations : sans ça, une page chargée au démarrage (onglet restauré) n'est jamais équipée.
     const onMessage = runtime.onMessage as { addListener?: (f: (...a: unknown[]) => unknown) => void } | undefined;

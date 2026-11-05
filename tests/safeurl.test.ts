@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { externalScheme, isLocalHost, suspiciousUrl } from '../src/shared/safeurl.ts';
+import { externalScheme, extOrigin, extTabUrl, isLocalHost, suspiciousUrl } from '../src/shared/safeurl.ts';
 
 test('adresses piégées détectées', () => {
   assert.ok(suspiciousUrl('https://paypal.com@phishing.ru/login')); // identifiant dans l'URL
@@ -30,4 +30,17 @@ test('externalScheme : applications externes, jamais les schémas internes ou da
   assert.equal(externalScheme('zoommtg://zoom.us/join?x=1'), 'zoommtg');
   for (const u of ['https://a.com', 'http://a.com', 'chrome-extension://x/p.html', 'file:///C:/a.exe', 'javascript:alert(1)', 'search-ms:query=x', 'ms-msdt:/id', 'app://ui/index.html', 'about:blank', 'pas une url'])
     assert.equal(externalScheme(u), '', u);
+});
+
+test('extensions : origine chrome-extension et onglets que tabs.create peut ouvrir', () => {
+  assert.equal(extOrigin('chrome-extension://abc/popup/index.html?x=1'), 'chrome-extension://abc');
+  assert.equal(extOrigin('https://a.com/'), '');
+  assert.equal(extOrigin('data:text/html,hi'), '');
+  const scope = 'chrome-extension://abc/';
+  assert.equal(extTabUrl('popup/index.html#/import', scope), 'chrome-extension://abc/popup/index.html#/import');
+  assert.equal(extTabUrl('https://vault.example.com/', scope), 'https://vault.example.com/');
+  for (const bad of ['data:text/html,<b>x</b>', 'chrome-extension://other/x.html', 'file:///C:/x.txt', 'javascript:alert(1)', 'about:blank'])
+    assert.equal(extTabUrl(bad, scope), null, bad);
+  assert.equal(extTabUrl('https://a.com/', 'https://site.com/'), 'https://a.com/');
+  assert.equal(extTabUrl('x.html', 'https://site.com/'), 'https://site.com/x.html'); // un site n'appelle jamais ceci (fromExt)
 });

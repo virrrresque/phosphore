@@ -1,12 +1,12 @@
 // Point d'entrée du processus principal.
-import { app, BaseWindow, clipboard, ClipboardItem, dialog, ipcMain, Menu, nativeTheme, net, protocol, session, shell, WebContentsView, type Input, type Session, type WebContents } from 'electron';
+import { app, BaseWindow, clipboard, ClipboardItem, dialog, ipcMain, Menu, nativeTheme, net, protocol, session, shell, webContents, WebContentsView, type Input, type Session, type WebContents } from 'electron';
 import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parse, searchUrl, type Action } from '../shared/command.js';
-import { isLocalHost, suspiciousUrl } from '../shared/safeurl.js';
+import { extOrigin, extTabUrl, isLocalHost, suspiciousUrl } from '../shared/safeurl.js';
 import { BlockLists } from './blocklists.js';
 import { autoUpdater } from 'electron-updater';
 import { modeOf, PARTS, restoreMode, TEXTS, WIDGETS, type Line, type Part, type PageSnap, type Settings, type UiState, type Widget } from '../shared/types.js';
@@ -111,15 +111,24 @@ function tabEvent(type: 'activated' | 'updated' | 'removed', args: unknown[], wa
     }
   }
 }
+/** chrome.storage.onChanged d'une extension, relayé à ses autres contextes de la même session (service workers, pages ouvertes). */
+function relayStorage(s: Session, origin: string, area: unknown, changes: unknown, from: object) {
+  if (!origin || typeof area !== 'string' || !/^(local|session|sync)$/.test(area) || !changes || typeof changes !== 'object') return;
+  for (const [v, i] of Object.entries(s.serviceWorkers.getAllRunning())) {
+    if (!i.scope.startsWith(origin + '/')) continue;
+    const w = s.serviceWorkers.getWorkerFromVersionID(Number(v));
+    if (w && w !== from && !w.isDestroyed()) try { w.send('ext-storage', area, changes); } catch { /* arrêté entre-temps */ }
+  }
+  for (const wc of webContents.getAllWebContents())
+    if (wc !== from && !wc.isDestroyed() && wc.session === s && wc.getURL().startsWith(origin + '/')) wc.send('ext-storage', area, changes);
+}
 /** tabs.create d'une extension : un site (http/https) ou une page de cette même extension, dans un onglet Phosphore. */
 function openExtTab(url: unknown, active: unknown, scope: string) {
-  let u: URL;
-  try { u = new URL(String(url).slice(0, 4096), scope); } catch { return null; }
-  const own = new URL(scope).origin;
-  if (!/^https?:$/.test(u.protocol) && u.origin !== own) return null;
-  const t = browser.newTab(u.href, { background: active === false });
+  const href = extTabUrl(url, scope);
+  if (!href) return null;
+  const t = browser.newTab(href, { background: active === false });
   const id = browser.webContentsOf(t.id)?.id;
-  return id == null ? null : { id, index: 0, windowId: 1, url: u.href, active: active !== false, highlighted: active !== false, pinned: false, incognito: false, status: 'loading' };
+  return id == null ? null : { id, index: 0, windowId: 1, url: href, active: active !== false, highlighted: active !== false, pinned: false, incognito: false, status: 'loading' };
 }
 const loaded = new WeakMap<Session, Set<string>>();
 // Chargement des extensions de chaque session au démarrage : les premières pages l'attendent (Browser.view).
@@ -141,6 +150,7 @@ function loadExtensions(s: Session): Promise<unknown> {
         wired.add(w);
         try { w.ipc.handle('ext-active-tab', () => activeWebTab()); } catch { /* déjà branché */ }
         try { w.ipc.handle('ext-open-tab', (_e, url: unknown, active: unknown) => openExtTab(url, active, w.scope)); } catch { /* déjà branché */ }
+        w.ipc.on('ext-storage', (_e, area: unknown, changes: unknown) => relayStorage(s, extOrigin(w.scope), area, changes, w));
       }
       const id = activeWebTab();
       if (runningStatus === 'running' && id != null) try { w.send('ext-tab-event', 'activated', [{ tabId: id, windowId: 1 }]); } catch { /* arrêté entre-temps */ }
@@ -1596,7 +1606,8 @@ app.whenReady().then(() => {
   // Pages d'extension ouvertes par « ext open » (preload ext-shim) : site affiché, et window.close qui ferme leur onglet.
   const fromExt = (e: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent) => !!e.senderFrame?.url.startsWith('chrome-extension://');
   ipcMain.handle('ext-active-tab', e => fromExt(e) ? activeWebTab() : null);
-  ipcMain.handle('ext-open-tab', (e, url: unknown, active: unknown) => fromExt(e) ? openExtTab(url, active, new URL(e.senderFrame!.url).origin + '/') : null);
+  ipcMain.handle('ext-open-tab', (e, url: unknown, active: unknown) => fromExt(e) ? openExtTab(url, active, extOrigin(e.senderFrame!.url) + '/') : null);
+  ipcMain.on('ext-storage', (e, area: unknown, changes: unknown) => { if (fromExt(e)) relayStorage(e.sender.session, extOrigin(e.senderFrame!.url), area, changes, e.sender); });
   ipcMain.on('ext-close', e => {
     const id = fromExt(e) ? browser.tabIdOf(e.sender) : undefined;
     if (id) browser.close(id);
