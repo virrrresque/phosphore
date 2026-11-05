@@ -11,6 +11,7 @@ if (here.startsWith('chrome-extension://'))
   contextBridge.exposeInMainWorld('__phosExt', {
     activeTab: () => ipcRenderer.invoke('ext-active-tab') as Promise<number | null>,
     close: () => ipcRenderer.send('ext-close'),
+    openTab: (url: string, active: boolean) => ipcRenderer.invoke('ext-open-tab', String(url).slice(0, 4096), !!active) as Promise<object | null>,
     // Événements d'onglets fabriqués par Phosphore (service worker seulement).
     onTabEvent: (cb: (type: string, args: unknown[]) => void) => { ipcRenderer.on('ext-tab-event', (_e, type: string, args: unknown[]) => cb(type, args)); },
   });
@@ -34,10 +35,11 @@ contextBridge.executeInMainWorld({
     const open = (u: unknown) => {
       const url = String(Array.isArray(u) ? u[0] ?? '' : u ?? '');
       if (!url) return;
-      if (g.open) g.open(url, '_blank');
-      else void (tabs?.create as ((o: object) => Promise<unknown>) | undefined)?.({ url })?.catch?.(() => {});
+      const b = (globalThis as { __phosExt?: { openTab(url: string, active: boolean): Promise<unknown> } }).__phosExt;
+      if (b) void b.openTab(url, true).catch(() => {});
+      else if (g.open) g.open(url, '_blank');
     };
-    const bridge = (globalThis as { __phosExt?: { activeTab(): Promise<number | null>; close(): void; onTabEvent(cb: (type: string, args: unknown[]) => void): void } }).__phosExt;
+    const bridge = (globalThis as { __phosExt?: { activeTab(): Promise<number | null>; close(): void; openTab(url: string, active: boolean): Promise<object | null>; onTabEvent(cb: (type: string, args: unknown[]) => void): void } }).__phosExt;
     // Page d'extension dans un onglet : window.close (bouton retour/fermer de Bitwarden) ferme l'onglet, comme un popup.
     const isPage = typeof (globalThis as { document?: unknown }).document === 'object';
     if (isPage && bridge) (globalThis as { close?: () => void }).close = () => bridge.close();
@@ -49,6 +51,12 @@ contextBridge.executeInMainWorld({
     }));
     // Popup ouvert dans un onglet : Chrome répond « undefined » dans un vrai popup, Bitwarden s'en sert pour savoir où il est.
     if (tabs) def(tabs, 'getCurrent', fn(() => undefined));
+    // tabs.create : absent d'Electron. Ouvre un onglet Phosphore (site, ou page de cette extension).
+    if (tabs && bridge) def(tabs, 'create', (o?: { url?: string; active?: boolean }, cb?: Cb) => {
+      const p = o?.url ? bridge.openTab(o.url, o.active !== false).catch(() => null) : Promise.resolve(null);
+      if (typeof cb === 'function') void p.then(cb);
+      return p;
+    });
     // tabs.query({ active: true }) : Electron ne sait pas quel onglet est affiché (réponse vide). Phosphore donne le dernier
     // site affiché, celui que le popup de Chrome verrait derrière lui (Bitwarden : identifiants proposés pour ce site).
     const query = tabs?.query as ((q: object) => Promise<{ id?: number }[]>) | undefined;
@@ -82,6 +90,25 @@ contextBridge.executeInMainWorld({
       bridge.onTabEvent((type, args) => evs[type]?.forEach(f => { try { f(...args); } catch (e) { console.error(e); } }));
     }
     const runtime = c.runtime as Record<string, unknown>;
+    // runtime.onInstalled : Electron ne l'envoie jamais. Envoyé une fois (« install »), au premier démarrage du service worker
+    // dans Phosphore, mémorisé dans le stockage de l'extension. Bitwarden y active son menu dans les champs.
+    const storage = (c.storage as { local?: { get(k: string): Promise<Record<string, unknown>>; set(v: object): Promise<void> } } | undefined)?.local;
+    if (!isPage && bridge && storage) {
+      const ls = new Set<(d: object) => void>();
+      try {
+        Object.defineProperty(runtime, 'onInstalled', { configurable: true, value: {
+          addListener: (f: (d: object) => void) => { ls.add(f); }, removeListener: (f: (d: object) => void) => { ls.delete(f); },
+          hasListener: (f: (d: object) => void) => ls.has(f), hasListeners: () => ls.size > 0,
+        } });
+        const KEY = '__phosphore_installed';
+        void storage.get(KEY).then(async v => {
+          if (v?.[KEY]) return;
+          await storage.set({ [KEY]: true });
+          for (let i = 0; i < 100 && !ls.size; i++) await new Promise(r => setTimeout(r, 100)); // écouteurs posés par le script de l'extension
+          ls.forEach(f => { try { f({ reason: 'install' }); } catch (e) { console.error(e); } });
+        }).catch(() => {});
+      } catch { /* API figée */ }
+    }
     def(runtime, 'getPlatformInfo', fn(() => ({ os: 'win', arch: 'x86-64', nacl_arch: 'x86-64' })));
     // « Gestionnaire de mots de passe par défaut » (Bitwarden) : Chrome demande la permission privacy puis coupe son propre
     // gestionnaire. Phosphore n'en a pas : la permission est accordée et le réglage dit toujours « géré par cette extension ».

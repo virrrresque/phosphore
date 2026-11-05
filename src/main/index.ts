@@ -111,6 +111,16 @@ function tabEvent(type: 'activated' | 'updated' | 'removed', args: unknown[], wa
     }
   }
 }
+/** tabs.create d'une extension : un site (http/https) ou une page de cette même extension, dans un onglet Phosphore. */
+function openExtTab(url: unknown, active: unknown, scope: string) {
+  let u: URL;
+  try { u = new URL(String(url).slice(0, 4096), scope); } catch { return null; }
+  const own = new URL(scope).origin;
+  if (!/^https?:$/.test(u.protocol) && u.origin !== own) return null;
+  const t = browser.newTab(u.href, { background: active === false });
+  const id = browser.webContentsOf(t.id)?.id;
+  return id == null ? null : { id, index: 0, windowId: 1, url: u.href, active: active !== false, highlighted: active !== false, pinned: false, incognito: false, status: 'loading' };
+}
 const loaded = new WeakMap<Session, Set<string>>();
 function loadExtensions(s: Session): Promise<unknown> {
   if (!settings) return Promise.resolve();
@@ -122,7 +132,7 @@ function loadExtensions(s: Session): Promise<unknown> {
       if (runningStatus !== 'starting') return;
       const w = s.serviceWorkers.getWorkerFromVersionID(versionId);
       if (!w?.scope.startsWith('chrome-extension://')) return;
-      try { w.ipc.handle('ext-active-tab', () => activeWebTab()); } catch { /* déjà branché */ }
+      try { w.ipc.handle('ext-active-tab', () => activeWebTab()); w.ipc.handle('ext-open-tab', (_e, url: unknown, active: unknown) => openExtTab(url, active, w.scope)); } catch { /* déjà branché */ }
     });
   }
   const done = loaded.get(s) ?? new Set<string>();
@@ -1574,6 +1584,7 @@ app.whenReady().then(() => {
   // Pages d'extension ouvertes par « ext open » (preload ext-shim) : site affiché, et window.close qui ferme leur onglet.
   const fromExt = (e: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent) => !!e.senderFrame?.url.startsWith('chrome-extension://');
   ipcMain.handle('ext-active-tab', e => fromExt(e) ? activeWebTab() : null);
+  ipcMain.handle('ext-open-tab', (e, url: unknown, active: unknown) => fromExt(e) ? openExtTab(url, active, new URL(e.senderFrame!.url).origin + '/') : null);
   ipcMain.on('ext-close', e => {
     const id = fromExt(e) ? browser.tabIdOf(e.sender) : undefined;
     if (id) browser.close(id);
