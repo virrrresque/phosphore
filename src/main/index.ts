@@ -93,6 +93,8 @@ function applyProxy(s: Session) {
 const loaded = new WeakMap<Session, Set<string>>();
 function loadExtensions(s: Session): Promise<unknown> {
   if (!settings) return Promise.resolve();
+  // API chrome.* absentes d'Electron, ajoutées inertes avant le démarrage des service workers (sinon Bitwarden plante).
+  if (!loaded.has(s)) s.registerPreloadScript({ type: 'service-worker', filePath: path.join(__dirname, '../preload/ext-shim.js') });
   const done = loaded.get(s) ?? new Set<string>();
   loaded.set(s, done);
   const jobs: Promise<unknown>[] = [];

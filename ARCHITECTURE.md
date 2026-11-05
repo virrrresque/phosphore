@@ -92,7 +92,7 @@ design/            fichiers Claude Design (à fournir, voir §11)
 tests/
 ```
 
-Les onglets web n'ont **aucun preload** : rien n'est exposé aux sites.
+Les onglets web n'ont **aucun preload** : rien n'est exposé aux sites. Seuls les service workers ont `preload/ext-shim.ts` (sessions des Spaces) : il ne fait rien hors d'une extension et ajoute aux extensions les API `chrome.*` absentes d'Electron (`webNavigation`, `contextMenus`, `notifications`…) en version inerte, sans quoi le service worker de Bitwarden plante.
 
 ## 4. Sécurité (appliquée dès la phase 1)
 
