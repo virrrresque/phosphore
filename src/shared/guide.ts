@@ -101,7 +101,7 @@ export const GUIDE: GuideSection[] = [
     ['mute · unmute · mute all-but-current', 'page audio', 'mute all-but-current'],
   ] },
   { id: 'search', title: 'Search & language', intro: 'engine, suggestions, site language', items: [
-    ['set search <engine>', 'duckduckgo, google, bing or brave', 'set search google'],
+    ['set search <engine>', 'duckduckgo, google, bing, brave or tor (Ahmia: .onion sites, open them through Tor with set proxy)', 'set search google'],
     ['set suggestions <true|false>', 'search suggestions while typing', 'set suggestions false'],
     ['set lang <fr|en|es|de|it>', 'language asked of websites, date format', 'set lang en'],
     ['view <text|web>', 'this site as text, or the real page', 'view web'],

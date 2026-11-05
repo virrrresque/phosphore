@@ -1,6 +1,6 @@
 // Analyse de ce qui est tapé dans l'invite. Pur (aucun accès Electron) : testé dans tests/.
 
-export type Engine = 'duckduckgo' | 'google' | 'bing' | 'brave';
+export type Engine = 'duckduckgo' | 'google' | 'bing' | 'brave' | 'tor';
 
 export type TabOp = 'new' | 'close' | 'pin' | 'unpin' | 'restore' | 'next' | 'prev'
   | 'reload' | 'back' | 'forward' | 'sleep-others' | 'sleep-current' | 'dup' | 'close-others' | 'copy' | 'print' | 'top' | 'bottom' | 'stop';
@@ -254,6 +254,7 @@ const ENGINES: Record<Engine, string> = {
   google: 'https://www.google.com/search?q=',
   bing: 'https://www.bing.com/search?q=',
   brave: 'https://search.brave.com/search?q=',
+  tor: 'https://ahmia.fi/search/?q=', // Ahmia : moteur des sites .onion (résultats ouverts via Tor, set proxy)
 };
 
 export function searchUrl(q: string, engine: Engine): string {
@@ -268,7 +269,7 @@ export function toUrl(input: string): string | null {
   if (/^https?:\/\//i.test(s)) candidate = s;
   else if (/^[a-z][a-z0-9+.-]*:(?!\d)/i.test(s)) return null; // autre protocole (file:, javascript:…) : jamais une URL
   else if (/^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?(\/|$)/i.test(s)) candidate = 'http://' + s;
-  else if (/^([a-z0-9-]+\.)+[a-z]{2,}(:\d+)?(\/.*)?$/i.test(s.split(/[?#]/)[0]) || /^(\d{1,3}\.){3}\d{1,3}(:\d+)?(\/|$)/.test(s)) candidate = 'https://' + s;
+  else if (/^([a-z0-9-]+\.)+[a-z]{2,}(:\d+)?(\/.*)?$/i.test(s.split(/[?#]/)[0]) || /^(\d{1,3}\.){3}\d{1,3}(:\d+)?(\/|$)/.test(s)) candidate = (/^[^/?#]+\.onion(:\d+)?([/?#]|$)/i.test(s) ? 'http://' : 'https://') + s; // .onion : http (déjà chiffré par Tor)
   else return null;
   try {
     const u = new URL(candidate);

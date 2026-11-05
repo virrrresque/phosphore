@@ -62,8 +62,8 @@ app.on('session-created', s => {
       notify(`⚠ ${h} est signalé comme site d'hameçonnage ou malveillant : page bloquée. Pour y aller quand même : blocklist allow ${h}`);
       return cb({ cancel: true });
     }
-    // https-only : un document http est réessayé en https (localhost / réseau privé et https-allow exemptés).
-    if (stt.httpsOnly && main && d.url.startsWith('http:') && !isLocalHost(h) && !stt.httpsAllow.includes(h))
+    // https-only : un document http est réessayé en https (localhost / réseau privé, .onion déjà chiffré par Tor, et https-allow exemptés).
+    if (stt.httpsOnly && main && d.url.startsWith('http:') && !isLocalHost(h) && !h.endsWith('.onion') && !stt.httpsAllow.includes(h))
       return cb({ redirectURL: d.url.replace(/^http:/i, 'https:') });
     cb({});
   });
@@ -401,7 +401,8 @@ app.whenReady().then(() => {
   async function restyle(wc: WebContents) {
     if (wc.isDestroyed()) return;
     // Confidentialité « strict » : WebRTC n'expose que l'IP publique (pas l'IP locale du réseau).
-    try { wc.setWebRTCIPHandlingPolicy(settings.privacy === 'strict' ? 'default_public_interface_only' : 'default'); } catch { /* vue fermée */ }
+    // Avec un proxy (Tor…) : WebRTC ne passe que par le proxy, sinon l'UDP direct révélerait l'IP réelle.
+    try { wc.setWebRTCIPHandlingPolicy(settings.proxy ? 'disable_non_proxied_udp' : settings.privacy === 'strict' ? 'default_public_interface_only' : 'default'); } catch { /* vue fermée */ }
     const url = wc.getURL();
     let host = '';
     try { host = new URL(url).hostname; } catch { /* page vide */ }
@@ -1706,7 +1707,8 @@ app.whenReady().then(() => {
       case 'suggest': {
         // Propositions de recherche (réglage « suggestions », désactivable), du moteur choisi. Session en mémoire : aucun cookie envoyé.
         const q = x.q;
-        if (!settings.suggest || typeof q !== 'string' || !q.trim() || q.length > 200) return;
+        // tor : aucune proposition (la frappe partirait chez Google).
+        if (!settings.suggest || settings.search === 'tor' || typeof q !== 'string' || !q.trim() || q.length > 200) return;
         // DuckDuckGo (/ac/ ?type=list) et Google partagent le format [texte, [propositions]].
         const ddg = settings.search === 'duckduckgo';
         const url = ddg ? `https://duckduckgo.com/ac/?q=${encodeURIComponent(q)}&type=list` : `https://suggestqueries.google.com/complete/search?client=firefox&hl=fr&q=${encodeURIComponent(q)}`;

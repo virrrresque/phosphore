@@ -8,6 +8,9 @@ test('toUrl reconnaît les adresses et refuse les protocoles dangereux', () => {
   assert.equal(toUrl('youtube.com'), 'https://youtube.com/');
   assert.equal(toUrl('fr.wikipedia.org/wiki/Phosphore'), 'https://fr.wikipedia.org/wiki/Phosphore');
   assert.equal(toUrl('http://exemple.com'), 'http://exemple.com/');
+  assert.equal(toUrl('abcdef.onion/page'), 'http://abcdef.onion/page');
+  assert.equal(toUrl('onion.example.com'), 'https://onion.example.com/');
+  assert.deepEqual(parse('chat', 'tor'), { type: 'navigate', url: 'https://ahmia.fi/search/?q=chat', newTab: false });
   assert.equal(toUrl('localhost:3000'), 'http://localhost:3000/');
   assert.equal(toUrl('exemple.com:8080/a'), 'https://exemple.com:8080/a');
   for (const bad of ['file:///C:/Windows', 'javascript:alert(1)', 'data:text/html,x', 'chrome://settings', 'app://ui/index.html', 'bonjour le monde', 'phosphore']) {

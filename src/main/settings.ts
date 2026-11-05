@@ -73,7 +73,7 @@ export function applySetting(s: Settings, key: string, raw: string): Settings | 
       return t === 'S' || t === 'M' || t === 'L' || t === 'XL' ? { ...s, size: t } : 'set size s|m|l|xl';
     }
     case 'search': case 'recherche':
-      return v === 'duckduckgo' || v === 'google' || v === 'bing' || v === 'brave' ? { ...s, search: v } : 'set search google|duckduckgo|bing|brave';
+      return v === 'duckduckgo' || v === 'google' || v === 'bing' || v === 'brave' || v === 'tor' ? { ...s, search: v } : 'set search google|duckduckgo|bing|brave|tor';
     case 'suggestions': case 'suggest': return flag('suggest', 'set suggestions true|false');
     case 'eco': {
       const b = v === 'toggle' ? !s.eco : bool(v);

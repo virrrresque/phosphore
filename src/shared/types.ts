@@ -77,7 +77,7 @@ export interface Settings {
   boot: boolean;
   seal: string;
   profile: string;
-  search: 'duckduckgo' | 'google' | 'bing' | 'brave';
+  search: 'duckduckgo' | 'google' | 'bing' | 'brave' | 'tor';
   suggest: boolean;
   eco: boolean;                       // mode économie : veille rapide des onglets, moins de processus
   sidebar: Widget[];                  // boutons ajoutés à la barre latérale (sidebar add …)

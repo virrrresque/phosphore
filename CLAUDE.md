@@ -14,7 +14,7 @@ Reply with the exact command(s) to type. Full list in the app: `man`; current va
 | theme | white, green, amber | colour theme |
 | size | s, m, l, xl | text size |
 | animations, boot, suggestions, eco | true / false | |
-| search | duckduckgo, google, bing, brave | search engine |
+| search | duckduckgo, google, bing, brave, tor | search engine. `tor` = Ahmia (search of .onion sites, no suggestions); opening .onion results needs Tor Browser open + `set proxy socks5://127.0.0.1:9150` (or tor.exe, port 9050). .onion addresses open in http (exempt from https-only). With any proxy, WebRTC is restricted to the proxy (no real-IP leak) |
 | lang | fr, en, es, en-US… | language asked of websites + date format (UI text stays French) |
 | newpage | any of `clock,date,shortcuts,recent,hint`, or `none`, `default` | blocks on the new page. "remove the text on the new page" → `set newpage clock` (or `none`) |
 | closed-max | 0-25 | items in the sidebar "fermés" list (`sidebar rm closed` removes the list) |

@@ -54,6 +54,7 @@ test('contrôle complet : réglages validés, nettoyés, exportés', () => {
   assert.equal((S('proxy', 'socks5://127.0.0.1:9050') as typeof d).proxy, 'socks5://127.0.0.1:9050');
   assert.equal((S('proxy', 'socks5h://127.0.0.1:9050') as typeof d).proxy, 'socks5h://127.0.0.1:9050');
   assert.equal(typeof S('proxy', 'javascript:alert(1)'), 'string');
+  assert.equal((S('search', 'tor') as typeof d).search, 'tor');
   assert.equal((S('home', 'youtube.com') as typeof d).home, 'https://youtube.com/');
   assert.equal(typeof S('home', 'file:///c:/x'), 'string');
   const s = sanitize({ bookmarks: [{ name: 'Y', url: 'https://youtube.com/' }, { name: 'X', url: 'javascript:1' }], permissions: { 'www.meet.google.com': ['camera', 'root'], 'bad site': ['camera'] }, zoom: 125 });
