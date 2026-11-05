@@ -83,6 +83,22 @@ contextBridge.executeInMainWorld({
     }
     const runtime = c.runtime as Record<string, unknown>;
     def(runtime, 'getPlatformInfo', fn(() => ({ os: 'win', arch: 'x86-64', nacl_arch: 'x86-64' })));
-    for (const n of ['webNavigation', 'contextMenus', 'notifications', 'privacy', 'sidePanel', 'offscreen', 'idle', 'commands', 'permissions']) def(c, n, ns());
+    // « Gestionnaire de mots de passe par défaut » (Bitwarden) : Chrome demande la permission privacy puis coupe son propre
+    // gestionnaire. Phosphore n'en a pas : la permission est accordée et le réglage dit toujours « géré par cette extension ».
+    const own = (q?: unknown) => { const p = q as { permissions?: string[]; origins?: string[] } | undefined; return !p?.origins?.length && (p?.permissions ?? []).every(x => x === 'privacy'); };
+    const perms = c.permissions as Record<string, unknown> | undefined;
+    const wrap = (k: 'contains' | 'request') => {
+      const real = typeof perms?.[k] === 'function' ? (perms[k] as (q: unknown) => Promise<boolean>).bind(perms) : null;
+      return (q?: unknown, cb?: Cb) => {
+        const p = own(q) ? Promise.resolve(true) : real ? real(q).catch(() => false) : Promise.resolve(false);
+        if (typeof cb === 'function') void p.then(cb);
+        return p;
+      };
+    };
+    if (perms) for (const k of ['contains', 'request'] as const) try { Object.defineProperty(perms, k, { configurable: true, value: wrap(k) }); } catch { /* API figée */ }
+    else def(c, 'permissions', ns({ contains: wrap('contains'), request: wrap('request') }));
+    const setting = () => ({ get: fn(() => ({ value: false, levelOfControl: 'controlled_by_this_extension' })), set: fn(() => undefined), clear: fn(() => undefined), onChange: event() });
+    def(c, 'privacy', ns({ services: ns({ passwordSavingEnabled: setting(), autofillAddressEnabled: setting(), autofillCreditCardEnabled: setting(), autofillEnabled: setting() }) }));
+    for (const n of ['webNavigation', 'contextMenus', 'notifications', 'sidePanel', 'offscreen', 'idle', 'commands']) def(c, n, ns());
   },
 });
