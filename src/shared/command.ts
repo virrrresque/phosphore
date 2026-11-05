@@ -64,7 +64,7 @@ export type Action =
   | { type: 'import-pass' }
   | { type: 'import-cookies'; browser: string }
   | { type: 'import-cookie-file'; file: string }                                   // '' = fenêtre de choix
-  | { type: 'pass'; op: 'ls' | 'copy' | 'user' | 'forget'; n: number; q: string }
+  | { type: 'pass'; op: 'ls' | 'copy' | 'user' | 'forget' | 'export'; n: number; q: string }
   | { type: 'error'; message: string };
 
 /**
@@ -121,6 +121,7 @@ export const COMMANDS: [string, string, string][] = [
   ["pass copy ", "copy a password (cleared after 30 s)", "copier un mot de passe (effacé après 30 s)"],
   ["pass user ", "copy a username", "copier un identifiant"],
   ["pass forget", "empty the vault", "vider le coffre"],
+  ["pass export", "export the vault as a CSV (Chrome format, readable by Bitwarden, KeePassXC…)", "exporter les mots de passe en CSV"],
   ["ext", "Extensions page: installed, enable / disable, install", "page Extensions : installées, activer / désactiver, installer"],
   ["ext store", "open the Store menu; on an extension's Web Store page: install it", "ouvrir le Chrome Web Store ; sur la page d'une extension : l'installer"],
   ["ext store ", "search the Store, or install from a Chrome Web Store link or id", "installer depuis le Chrome Web Store (lien ou identifiant)"],
@@ -370,6 +371,7 @@ export function parse(raw: string, engine: Engine): Action | null {
       return sub === 'passwords' || sub === 'password' || sub === 'pass' ? { type: 'import-pass' } : { type: 'error', message: 'import passwords (fichier CSV exporté d\'un autre navigateur) · import cookies (Chrome, Edge, Brave, Opera…)' };
     case 'pass': case 'passwords': {
       if (sub === 'import') return { type: 'import-pass' };
+      if (sub === 'export') return { type: 'pass', op: 'export', n: 0, q: '' };
       if (sub === 'forget' || sub === 'clear') return { type: 'pass', op: 'forget', n: 0, q: '' };
       const n = Number(rest[1]);
       if (sub === 'copy' || sub === 'user') return Number.isInteger(n) && n >= 1 ? { type: 'pass', op: sub, n, q: '' } : { type: 'error', message: `pass ${sub} <numéro> (pass ls pour les numéros)` };

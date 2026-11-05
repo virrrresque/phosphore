@@ -213,7 +213,7 @@ export function choicesFor(args: string[], c: Ctx): Choice[] | null {
     case 'import':
       if (n === 1) return subs(['cookies', 'another browser\'s logins', true], ['passwords', 'CSV password file']);
       return n === 2 && a1 === 'cookies' ? ['chrome', 'edge', 'brave', 'opera', 'operagx', 'vivaldi'].map(value => ({ value, desc: 'source browser' })) : null;
-    case 'pass': return n === 1 ? subs(['ls', 'list'], ['copy', 'copy a password', true], ['user', 'copy a username', true], ['forget', 'empty the vault']) : null;
+    case 'pass': return n === 1 ? subs(['ls', 'list'], ['copy', 'copy a password', true], ['user', 'copy a username', true], ['forget', 'empty the vault'], ['export', 'save as CSV']) : null;
     case 'cookies': return n === 1 ? subs(['import', 'pick a cookie file from another browser'], ['clear', "this site's cookies"], ['clear-all', 'every cookie (asks first)']) : null;
     case 'cache': return n === 1 ? subs(['clear', 'clear']) : null;
     case 'eco': return n === 1 ? subs(['on', 'on'], ['off', 'off']) : null;

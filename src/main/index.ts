@@ -24,7 +24,7 @@ let playSound: (ev: SoundEvent) => void = () => {};
 import { load, save } from './store.js';
 import { SHORTS_CSS, WORLD } from './webstyle.js';
 import { spotCss, TEXT_SCRIPT } from './webtext.js';
-import { parseCsv } from './csv.js';
+import { parseCsv, toCsv } from './csv.js';
 import { chromiumBrowsers, installedBrowsers, readChromiumCookies, readCookieFile, type Read } from './cookies.js';
 import { available as vaultAvailable, decrypt, encryptRows, merge, type Entry } from './vault.js';
 
@@ -1312,6 +1312,18 @@ app.whenReady().then(() => {
       }
       case 'pass': {
         if (a.op === 'forget') { vault = []; save('passwords', vault); return msg('Coffre vidé.'); }
+        if (a.op === 'export') {
+          if (!vault.length) return msg('Coffre vide : rien à exporter.');
+          dialog.showSaveDialog(win, { title: 'Exporter les mots de passe (fichier en clair)', defaultPath: path.join(app.getPath('documents'), 'phosphore-passwords.csv'), filters: [{ name: 'CSV', extensions: ['csv'] }] }).then(r => {
+            if (r.canceled || !r.filePath) return;
+            let text: string;
+            try { text = toCsv(vault.map(e => ({ name: e.host, url: e.url, user: e.user, pass: decrypt(e) }))); } catch { return msg('pass export : déchiffrement impossible (coffre d\'un autre compte Windows ?)'); }
+            try { fs.writeFileSync(r.filePath, text, { encoding: 'utf8', mode: 0o600 }); } catch { return msg('pass export : écriture impossible'); }
+            text = '';
+            msg(`${vault.length} mots de passe exportés · ${path.basename(r.filePath)} est EN CLAIR : supprimez-le après usage`);
+          });
+          return;
+        }
         if (a.op === 'ls') {
           if (!vault.length) return msg('Coffre vide. import passwords : charger un fichier CSV exporté d\'un autre navigateur.');
           const words = a.q.toLowerCase().split(/\s+/).filter(Boolean);

@@ -30,4 +30,10 @@ export function parseCsv(text: string): CsvRow[] {
   });
 }
 
+/** CSV au format d'export Chrome (name,url,username,password,note), relu par parseCsv et par Bitwarden, KeePassXC… */
+export function toCsv(rows: (CsvRow & { name: string })[]): string {
+  const f = (s: string) => /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  return ['name,url,username,password,note', ...rows.map(r => [r.name, r.url, r.user, r.pass, ''].map(f).join(','))].join('\r\n') + '\r\n';
+}
+
 export const passHost = (url: string) => { try { return new URL(url).host; } catch { return url.slice(0, 80); } };

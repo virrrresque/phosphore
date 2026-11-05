@@ -85,7 +85,7 @@ Chromium is frozen to the Electron version until rebuilt. To update: in the proj
 
 ## Passwords
 
-No built-in password manager UI. Use `import passwords` (CSV from another browser) + `pass ls|copy|user`, or an external manager.
+No built-in password manager UI. Use `import passwords` (CSV from another browser) + `pass ls|copy|user`, `pass export` (whole vault to a plain CSV, Chrome format, for Bitwarden/KeePassXC), or an external manager.
 
 **Bitwarden** (and other extensions whose UI is a toolbar popup): install it (`ext store`), then `ext open <n>` (or the `[ouvrir]` button on the `ext` page) opens the extension's popup/options page **in a tab** — log in there; its page-autofill content scripts work separately. This works because `ext open` loads the `chrome-extension://<id>/<default_popup>` page internally (sites still can't navigate to `chrome-extension://`). The toolbar button/badge itself is still absent.
 

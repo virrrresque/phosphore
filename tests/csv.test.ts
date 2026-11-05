@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { parseCsv, passHost } from '../src/main/csv.ts';
+import { parseCsv, passHost, toCsv } from '../src/main/csv.ts';
 
 test('parseCsv : export Chromium standard', () => {
   const rows = parseCsv('name,url,username,password,note\nGitHub,https://github.com/,moi,secret1,\nGmail,https://mail.google.com/,moi@gmail.com,"p,a""ss",x\n');
@@ -23,4 +23,9 @@ test('parseCsv : sans colonne password → erreur', () => {
 test('passHost', () => {
   assert.equal(passHost('https://mail.google.com/x'), 'mail.google.com');
   assert.equal(passHost('pas-une-url'), 'pas-une-url');
+});
+
+test('toCsv : relu à l\'identique par parseCsv (virgules, guillemets, sauts de ligne)', () => {
+  const rows = [{ name: 'x.fr', url: 'https://x.fr', user: 'a,b', pass: 'p"a\nss' }, { name: 'y.fr', url: '', user: '', pass: 'pw' }];
+  assert.deepEqual(parseCsv(toCsv(rows)), rows.map(({ url, user, pass }) => ({ url, user, pass })));
 });
