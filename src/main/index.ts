@@ -93,6 +93,24 @@ function applyProxy(s: Session) {
 // Dernier site (http/https) affiché : l'onglet « actif » vu par les extensions, même quand leur page est au premier plan.
 let lastWebTab: string | undefined;
 const activeWebTab = () => (lastWebTab && browser?.webContentsOf(lastWebTab)?.id) ?? null;
+/**
+ * Événements d'onglets pour les service workers d'extension : Electron n'envoie jamais tabs.onActivated / onUpdated / onRemoved
+ * (Bitwarden en a besoin pour mettre à jour les identifiants proposés dans les champs). Reçus par ext-shim.
+ * wake : le worker endormi est réveillé (changement d'onglet), sinon seuls ceux qui tournent reçoivent l'événement.
+ */
+function tabEvent(type: 'activated' | 'updated' | 'removed', args: unknown[], wake = false) {
+  for (const s of spaceSessions()) {
+    const running = Object.entries(s.serviceWorkers.getAllRunning());
+    for (const e of s.extensions.getAllExtensions()) {
+      const m = e.manifest as { background?: { service_worker?: string }; permissions?: string[] };
+      if (!m.background?.service_worker) continue;
+      const send = (w?: Electron.ServiceWorkerMain) => { try { if (w && !w.isDestroyed()) w.send('ext-tab-event', type, args); } catch { /* worker arrêté entre-temps */ } };
+      const on = running.find(([, i]) => i.scope === e.url);
+      if (on) send(s.serviceWorkers.getWorkerFromVersionID(Number(on[0])));
+      else if (wake && m.permissions?.includes('tabs')) s.serviceWorkers.startWorkerForScope(e.url).then(send, () => {});
+    }
+  }
+}
 const loaded = new WeakMap<Session, Set<string>>();
 function loadExtensions(s: Session): Promise<unknown> {
   if (!settings) return Promise.resolve();
@@ -258,7 +276,11 @@ app.whenReady().then(() => {
   browser = new Browser(win, ui, sess, {
     changed() {
       const cur = browser?.active();
-      if (cur && /^https?:/.test(cur.url)) lastWebTab = cur.id;
+      if (cur && !cur.private && /^https?:/.test(cur.url) && cur.id !== lastWebTab) {
+        lastWebTab = cur.id;
+        const id = activeWebTab();
+        if (id != null) tabEvent('activated', [{ tabId: id, windowId: 1 }], true);
+      }
       clearTimeout(saveTimer);
       saveTimer = setTimeout(persist, 500);
       pushState();
@@ -279,6 +301,13 @@ app.whenReady().then(() => {
       if (last && last.title !== title) { last.title = title; saveHistory(); }
     },
     ready: restyle,
+    tabStatus(tabId, wcId, status) {
+      if (status === 'removed') return tabEvent('removed', [wcId, { windowId: 1, isWindowClosing: false }]);
+      const t = browser.tab(tabId), wc = browser.webContentsOf(tabId);
+      if (!t || t.private || !wc || !/^https?:/.test(wc.getURL())) return;
+      tabEvent('updated', [wcId, { status, ...(status === 'loading' ? { url: wc.getURL() } : {}) },
+        { id: wcId, index: 0, windowId: 1, url: wc.getURL(), title: t.title, status, active: tabId === lastWebTab, highlighted: tabId === lastWebTab, pinned: t.pinned, incognito: false, discarded: false, autoDiscardable: true, groupId: -1, audible: wc.isCurrentlyAudible() }]);
+    },
     mode: url => modeOf(url, settings.textHosts),
     // Cookies communs : la partition de « perso » (déjà connectée) sert à tous les Spaces.
     partition: id => settings.sharedCookies ? 'persist:space-perso' : 'persist:space-' + id,

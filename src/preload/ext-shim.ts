@@ -11,6 +11,8 @@ if (here.startsWith('chrome-extension://'))
   contextBridge.exposeInMainWorld('__phosExt', {
     activeTab: () => ipcRenderer.invoke('ext-active-tab') as Promise<number | null>,
     close: () => ipcRenderer.send('ext-close'),
+    // Événements d'onglets fabriqués par Phosphore (service worker seulement).
+    onTabEvent: (cb: (type: string, args: unknown[]) => void) => { ipcRenderer.on('ext-tab-event', (_e, type: string, args: unknown[]) => cb(type, args)); },
   });
 
 contextBridge.executeInMainWorld({
@@ -35,7 +37,7 @@ contextBridge.executeInMainWorld({
       if (g.open) g.open(url, '_blank');
       else void (tabs?.create as ((o: object) => Promise<unknown>) | undefined)?.({ url })?.catch?.(() => {});
     };
-    const bridge = (globalThis as { __phosExt?: { activeTab(): Promise<number | null>; close(): void } }).__phosExt;
+    const bridge = (globalThis as { __phosExt?: { activeTab(): Promise<number | null>; close(): void; onTabEvent(cb: (type: string, args: unknown[]) => void): void } }).__phosExt;
     // Page d'extension dans un onglet : window.close (bouton retour/fermer de Bitwarden) ferme l'onglet, comme un popup.
     const isPage = typeof (globalThis as { document?: unknown }).document === 'object';
     if (isPage && bridge) (globalThis as { close?: () => void }).close = () => bridge.close();
@@ -65,6 +67,20 @@ contextBridge.executeInMainWorld({
         return p;
       } });
     } catch { /* API figée */ }
+    // tabs.onActivated / onUpdated / onRemoved : Electron ne les déclenche jamais ; Phosphore les envoie au service worker.
+    if (!isPage && tabs && bridge) {
+      const evs: Record<string, Set<(...a: unknown[]) => void>> = {};
+      for (const [type, name] of [['activated', 'onActivated'], ['updated', 'onUpdated'], ['removed', 'onRemoved']]) {
+        const ls = evs[type] = new Set();
+        try {
+          Object.defineProperty(tabs, name, { configurable: true, value: {
+            addListener: (f: (...a: unknown[]) => void) => { ls.add(f); }, removeListener: (f: (...a: unknown[]) => void) => { ls.delete(f); },
+            hasListener: (f: (...a: unknown[]) => void) => ls.has(f), hasListeners: () => ls.size > 0,
+          } });
+        } catch { /* API figée */ }
+      }
+      bridge.onTabEvent((type, args) => evs[type]?.forEach(f => { try { f(...args); } catch (e) { console.error(e); } }));
+    }
     const runtime = c.runtime as Record<string, unknown>;
     def(runtime, 'getPlatformInfo', fn(() => ({ os: 'win', arch: 'x86-64', nacl_arch: 'x86-64' })));
     for (const n of ['webNavigation', 'contextMenus', 'notifications', 'privacy', 'sidePanel', 'offscreen', 'idle', 'commands', 'permissions']) def(c, n, ns());

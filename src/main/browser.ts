@@ -48,6 +48,8 @@ export interface Hooks {
   /** Titre reçu après la navigation (pour l'historique). */
   titled(url: string, title: string): void;
   ready(wc: WebContents): void;
+  /** Chargement commencé / fini, ou page détruite : relayé aux extensions (tabs.onUpdated / onRemoved). */
+  tabStatus(tabId: string, wcId: number, status: 'loading' | 'complete' | 'removed'): void;
   /** Mode d'affichage d'une adresse : texte (terminal) ou web (vraie page). */
   mode(url: string): 'text' | 'web';
   /** Partition (cookies, stockage) d'un Space : la sienne, ou une commune à tous (set spaces true). */
@@ -564,8 +566,10 @@ export class Browser {
     const nav = (_e: unknown, url: string) => { if (/^https?:/.test(url)) tab.url = url; this.changed(); };
     wc.on('did-navigate', (e, url) => { live.error = null; nav(e, url); this.hooks.visited(tab.id, url, tab.title); if (this.shown === view) { this.layout(); this.stack(); } });
     wc.on('did-navigate-in-page', (e, url, isMain) => { if (isMain) nav(e, url); });
-    wc.on('did-start-loading', () => { live.loading = true; this.changed(); });
-    wc.on('did-stop-loading', () => { live.loading = false; this.changed(); });
+    const wcId = wc.id; // encore lisible après « destroyed »
+    wc.on('did-start-loading', () => { live.loading = true; this.changed(); this.hooks.tabStatus(tab.id, wcId, 'loading'); });
+    wc.on('did-stop-loading', () => { live.loading = false; this.changed(); this.hooks.tabStatus(tab.id, wcId, 'complete'); });
+    wc.once('destroyed', () => this.hooks.tabStatus(tab.id, wcId, 'removed'));
     wc.on('did-finish-load', () => { if (this.shown === view) this.hooks.sound('page-load'); }); // seulement la page affichée
     wc.on('did-fail-load', (_e, code, desc, url, isMain) => {
       if (!isMain || code === -3) return; // -3 = chargement annulé, pas une erreur
