@@ -7,6 +7,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parse, searchUrl, type Action } from '../shared/command.js';
 import { extOrigin, extTabUrl, isLocalHost, suspiciousUrl } from '../shared/safeurl.js';
+import { argUrl } from './openarg.js';
 import { BlockLists } from './blocklists.js';
 import { autoUpdater } from 'electron-updater';
 import { modeOf, PARTS, restoreMode, TEXTS, WIDGETS, type Line, type Part, type PageSnap, type Settings, type UiState, type Widget } from '../shared/types.js';
@@ -22,7 +23,7 @@ import type { SoundEvent } from '../shared/sounds.js';
 /** Son d'interface (mod de sons) ; branché une fois l'interface créée. */
 let playSound: (ev: SoundEvent) => void = () => {};
 import { load, save } from './store.js';
-import { SHORTS_CSS, WORLD } from './webstyle.js';
+import { scrollbarCss, SHORTS_CSS, WORLD } from './webstyle.js';
 import { spotCss, TEXT_SCRIPT } from './webtext.js';
 import { parseCsv, toCsv } from './csv.js';
 import { chromiumBrowsers, installedBrowsers, readChromiumCookies, readCookieFile, type Read } from './cookies.js';
@@ -391,13 +392,14 @@ app.whenReady().then(() => {
   });
   win.on('closed', () => app.quit());
   // Liens ouverts depuis Windows (navigateur par défaut) : une adresse http(s) en argument = un nouvel onglet.
-  const openArgs = (argv: string[]) => { for (const u of argv.filter(a => /^https?:\/\//i.test(a) && a.length <= 4096)) browser.newTab(u); };
-  app.on('second-instance', (_e, argv) => { if (win.isMinimized()) win.restore(); win.focus(); openArgs(argv); });
-  ui.webContents.once('did-finish-load', () => setTimeout(() => openArgs(process.argv.slice(1)), 300));
+  const openArgs = (argv: string[], cwd: string) => { for (const u of argv.map(a => argUrl(a, cwd, fs.existsSync)).filter(Boolean)) browser.newTab(u); };
+  app.on('second-instance', (_e, argv, cwd) => { if (win.isMinimized()) win.restore(); win.focus(); openArgs(argv, cwd); });
+  ui.webContents.once('did-finish-load', () => setTimeout(() => openArgs(process.argv.slice(1), process.cwd()), 300));
 
   // ── Scripts et styles injectés dans les sites (monde isolé : invisibles pour le site) ──
   // Mode texte : conversion en lignes + mise en vedette des médias. Mode web : la page intacte (sauf Shorts masqués).
   const cssKeys = new WeakMap<WebContents, string[]>();
+  let barCss = ''; // barre de défilement des sites aux couleurs de l'interface (envoyées par elle : thème, set color, set css)
   async function restyle(wc: WebContents) {
     if (wc.isDestroyed()) return;
     // Confidentialité « strict » : WebRTC n'expose que l'IP publique (pas l'IP locale du réseau).
@@ -410,7 +412,7 @@ app.whenReady().then(() => {
     cssKeys.delete(wc);
     try {
       for (const k of old) await wc.removeInsertedCSS(k);
-      const keys = [await wc.insertCSS(spotCss(settings), { cssOrigin: 'user' })];
+      const keys = [await wc.insertCSS(spotCss(settings) + barCss, { cssOrigin: 'user' })];
       if (/(^|\.)youtube\.com$/.test(host)) keys.push(await wc.insertCSS(SHORTS_CSS, { cssOrigin: 'user' }));
       if (host) for (const name of settings.mods) { const css = modCss(name, host); if (css) keys.push(await wc.insertCSS(css, { cssOrigin: 'user' })); }
       cssKeys.set(wc, keys);
@@ -1695,6 +1697,7 @@ app.whenReady().then(() => {
         }, () => {});
       }
       case 'overlay': if (typeof x.on === 'boolean') browser.setOverlay(x.on); return;
+      case 'scrollbar': barCss = scrollbarCss(x.thumb, x.track); return restyleAll();
       case 'internal': if (typeof x.on === 'boolean') { browser.internal = x.on; browser.show(); } return;
       case 'focus-page': return browser.focusPage();
       case 'store-detail': {

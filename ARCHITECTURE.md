@@ -46,7 +46,8 @@ qui porte le sceau choisi (ex. `ORION>`) : un site ne peut jamais écrire dedans
 ### Mode web (par défaut) et mode texte
 
 - **Mode web** (par défaut) : la vraie page, intacte, sans filtre (seuls les
-  Shorts sont masqués sur YouTube). L'interface imite Windows Terminal /
+  Shorts sont masqués sur YouTube, et la barre de défilement de la page prend
+  les couleurs de l'interface : `--line-strong` / `--bg`). L'interface imite Windows Terminal /
   PowerShell en mode sombre : onglets en haut, barre d'adresse (recherche Google
   par défaut), site encadré, invite de commandes en bas (`PS SCEAU:\space>`).
   Le sceau, mot secret tiré au hasard, prouve que l'invite vient du navigateur :
@@ -107,7 +108,11 @@ Réglages forcés sur **toutes** les vues :
   (on utilise `textContent` et `createElement`).
 - **CSP de l'interface** : `default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'`.
 - **Navigation** : seuls `http`, `https` et les pages internes sont autorisés.
-  `file://` bloqué. Protocoles externes (`mailto:`, `steam:`…) : dialogue de
+  `file://` bloqué, sauf un `.pdf`/`.htm`/`.html` local passé en argument par
+  Windows (« Ouvrir avec », `src/main/openarg.ts`) et les liens de cette page
+  locale vers d'autres fichiers du même type ; jamais depuis un site, jamais
+  tapé dans le prompt. `plugins: true` sur les onglets = lecteur PDF de
+  Chromium seulement. Protocoles externes (`mailto:`, `steam:`…) : dialogue de
   confirmation avant `shell.openExternal`. `window.open` non désiré : refusé
   ou converti en nouvel onglet après geste utilisateur.
 - **Permissions** : caméra, micro, géolocalisation, notifications,

@@ -71,6 +71,7 @@ let closedOpen = true;
 let menu: HTMLElement | null = null; // menu clic droit ouvert
 let resizing = false; // poignée de la barre latérale tirée
 let cssApplied: string[] = []; // variables posées par « set css », retirées quand on les remet par défaut
+let lastBar = ''; // couleurs de barre de défilement déjà envoyées aux sites
 const tv = new TextView(m => send(m), () => { renderPrompt(); sendLayout(); });
 
 // ── messages du processus principal ──
@@ -274,6 +275,9 @@ function render() {
   for (const k of cssApplied) if (!(k in s.css)) d.style.removeProperty(k);
   cssApplied = Object.keys(s.css);
   for (const [k, v] of Object.entries(s.css)) d.style.setProperty(k, v);
+  // Barre de défilement des sites : mêmes couleurs que celles de l'interface (envoyées seulement quand elles changent).
+  const cs = getComputedStyle(d), bar = [cs.getPropertyValue('--line-strong').trim(), cs.getPropertyValue('--bg').trim()];
+  if (bar.join(' ') !== lastBar) { lastBar = bar.join(' '); send({ t: 'scrollbar', thumb: bar[0], track: bar[1] }); }
   renderTabs();
   renderStatus();
   renderSide();
@@ -301,7 +305,7 @@ function renderPage() {
   sendLayout();
 }
 
-function host(url: string) { try { return new URL(url).host; } catch { return url; } }
+function host(url: string) { try { return new URL(url).host || url; } catch { return url; } } // file:// : pas d'hôte
 const spaceName = () => { const s = st?.session; return s?.spaces.find(x => x.id === s.activeSpace)?.name.toLowerCase() ?? ''; };
 /** Invite (set prompt) : {user} = réglage « profile », {space} = Space courant, comme un dossier. */
 const ps = () => (st?.settings.prompt ?? DEFAULT_PROMPT).replaceAll('{user}', st?.settings.profile ?? '').replaceAll('{space}', spaceName() + (activeTab()?.private ? ' (privé)' : ''));
@@ -1213,6 +1217,12 @@ $('w-min').onclick = () => send({ t: 'win', op: 'min' });
 $('w-max').onclick = () => send({ t: 'win', op: 'max' });
 $('w-close').onclick = () => send({ t: 'win', op: 'close' });
 $('page').addEventListener('mousedown', e => { if (sugg.length && !(e.target as HTMLElement).closest('#sugg')) done(); });
+// Molette sur la page pendant des propositions ou un menu : l'interface est au-dessus du site et garderait la molette
+// (le site ne défilerait plus). On les ferme (le texte tapé reste) : le site repasse devant dès ce cran.
+$('page').addEventListener('wheel', e => {
+  if (menu) closeMenu();
+  if (sugg.length && !(e.target as HTMLElement).closest('#sugg')) { sugg = []; renderPrompt(); }
+}, { passive: true });
 
 // Position des « trous » où le processus principal place le site : la page entière (mode web) ou le panneau (mode texte).
 const pageEl = $('page'), mediaEl = $('media');

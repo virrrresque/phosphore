@@ -2,6 +2,7 @@
 import { app, BrowserWindow, clipboard, Menu, type MenuItemConstructorOptions, type Session, type WebContents } from 'electron';
 import { permNames } from './settings.js';
 import { externalScheme } from '../shared/safeurl.js';
+import { LOCAL_PAGE } from './openarg.js';
 
 export const isWebUrl = (url: string) => /^https?:\/\//i.test(url);
 
@@ -85,7 +86,9 @@ export function hardenWebContents(rules: OpenRules): void {
 
     // Pages autorisées : http(s) pour les sites, et chrome-extension:// pour les pages d'une extension (popup ouvert avec « ext open »).
     // about:blank et blob: comme Chrome : popups remplies par la page (OAuth, impression, fichier généré).
-    const allowedPage = (url: string) => isWebUrl(url) || /^(chrome-extension:\/\/|blob:https?:|about:blank($|[?#]))/i.test(url);
+    // file:// : seulement depuis une page locale (liens d'une doc HTML ouverte depuis Windows) ; jamais depuis un site.
+    const allowedPage = (url: string) => isWebUrl(url) || /^(chrome-extension:\/\/|blob:https?:|about:blank($|[?#]))/i.test(url)
+      || (/^file:/i.test(url) && /^file:/i.test(wc.getURL()) && LOCAL_PAGE.test(url.split(/[?#]/)[0]));
     const guard = (e: { preventDefault(): void }, url: string) => {
       if (rules.isUi(wc) || !allowedPage(url)) e.preventDefault(); // l'interface ne navigue jamais ; les sites restent en http(s)/extension
       if (!rules.isUi(wc) && externalScheme(url)) rules.openExternal(url); // l'utilisateur confirme avant

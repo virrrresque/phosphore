@@ -26,7 +26,7 @@ export function sanitizeSession(raw: unknown): Session {
   const spaceIds = new Set(spaces.map(s => s.id));
   const items: Item[] = (Array.isArray(r.items) ? r.items : []).filter((i): i is Item =>
     !!i && str(i.id, 40) && spaceIds.has(i.spaceId) && (i.parent === null || str(i.parent, 40)) &&
-    (i.kind === 'tab' ? str(i.url) && /^(https?:|$)/.test(i.url) && str(i.title, 1024) && typeof i.pinned === 'boolean' && !i.private
+    (i.kind === 'tab' ? str(i.url) && /^(https?:|file:|$)/.test(i.url) && str(i.title, 1024) && typeof i.pinned === 'boolean' && !i.private
       : i.kind === 'folder' && str(i.name, 80) && typeof i.open === 'boolean'));
   const folders = new Set(items.filter(i => i.kind === 'folder').map(i => i.id));
   for (const i of items) if (i.parent !== null && !folders.has(i.parent)) i.parent = null;
@@ -143,7 +143,7 @@ export class Browser {
     if (twin) { if (!opts.background) this.activate(twin.id); return twin; }
     const next = (opts.next || !this.hooks.newTabEnd()) && cur && (opts.spaceId ?? this.s.activeSpace) === cur.spaceId;
     const tab: TabItem = {
-      kind: 'tab', id: newId(), spaceId: opts.spaceId ?? this.s.activeSpace, url, title: url ? new URL(url).host : 'nouvelle-page',
+      kind: 'tab', id: newId(), spaceId: opts.spaceId ?? this.s.activeSpace, url, title: url ? new URL(url).host || decodeURIComponent(url.split('/').pop()!) : 'nouvelle-page',
       pinned: false, parent: opts.parent ?? (next && !cur.pinned ? cur.parent : null),
       ...(opts.private ? { private: true } : {}),
     };
@@ -271,7 +271,7 @@ export class Browser {
     // Estimation : un processus peut servir plusieurs onglets du même site.
     this.slept.set(id, { at: this.clock.now(), mb: m ? Math.round((m.memory.privateBytes ?? m.memory.workingSetSize) / 1024) : 0 });
     const url = l.view.webContents.getURL();
-    if (tab && /^https?:/.test(url)) tab.url = url;
+    if (tab && /^(https?|file):/.test(url)) tab.url = url;
     if (this.shown === l.view) { this.win.contentView.removeChildView(l.view); this.shown = null; }
     l.view.webContents.close();
     l.view = undefined;
@@ -548,6 +548,7 @@ export class Browser {
         allowRunningInsecureContent: false, experimentalFeatures: false, navigateOnDragDrop: false,
         // Page d'extension ouverte par « ext open » (popup Bitwarden…) : API chrome.* absentes d'Electron ajoutées. Jamais pour un site.
         ...(tab.url.startsWith('chrome-extension://') ? { preload: path.join(__dirname, '../preload/ext-shim.js') } : {}),
+        plugins: true, // lecteur PDF de Chromium (seul « plugin » d'Electron) : sans lui un PDF n'est pas affiché
       },
     });
     view.setBackgroundColor('#0c0c0c');
@@ -565,7 +566,7 @@ export class Browser {
       else if (this.hooks.unloadDelay() > 0 && tab.spaceId !== this.s.activeSpace) this.scheduleUnload(tab.id);
       this.changed();
     });
-    const nav = (_e: unknown, url: string) => { if (/^https?:/.test(url)) tab.url = url; this.changed(); };
+    const nav = (_e: unknown, url: string) => { if (/^(https?|file):/.test(url)) tab.url = url; this.changed(); };
     wc.on('did-navigate', (e, url) => { live.error = null; nav(e, url); this.hooks.visited(tab.id, url, tab.title); if (this.shown === view) { this.layout(); this.stack(); } });
     wc.on('did-navigate-in-page', (e, url, isMain) => { if (isMain) nav(e, url); });
     const wcId = wc.id; // encore lisible après « destroyed »
@@ -576,7 +577,7 @@ export class Browser {
     wc.on('did-fail-load', (_e, code, desc, url, isMain) => {
       if (!isMain || code === -3) return; // -3 = chargement annulé, pas une erreur
       live.error = `${desc} (${code})`;
-      if (/^https?:/.test(url)) tab.url = url;
+      if (/^(https?|file):/.test(url)) tab.url = url;
       this.show();
     });
     wc.on('dom-ready', () => this.hooks.ready(wc));
